@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <application
+        android:name=".TermuxTaskerApplication"
+        android:label="@string/application_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:fullBackupOnly="false"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".activities.TermuxTaskerMainActivity"
+            android:exported="true"
+            android:label="@string/app_title"
+            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".activities.SchedulesActivity"
+            android:exported="false"
+            android:label="@string/menu_schedules"
+            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
+            android:parentActivityName=".activities.TermuxTaskerMainActivity" />
+
+        <activity
+            android:name=".activities.UsageGuideActivity"
+            android:exported="false"
+            android:label="@string/menu_usage_guide"
+            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
+            android:parentActivityName=".activities.TermuxTaskerMainActivity" />
+
+    </application>
+
+</manifest>

@@ -1,0 +1,224 @@
+package com.termux.tasker.activities;
+
+import android.content.SharedPreferences;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.termux.shared.activity.media.AppCompatActivityUtils;
+import com.termux.shared.logger.Logger;
+import com.termux.shared.termux.theme.TermuxThemeUtils;
+import com.termux.shared.theme.NightMode;
+import com.termux.tasker.R;
+import com.termux.tasker.TermuxTaskerApplication;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+
+public class SchedulesActivity extends AppCompatActivity {
+
+    private static final String LOG_TAG = "SchedulesActivity";
+    private RecyclerView recyclerView;
+    private TextView emptyStateView;
+    private SharedPreferences prefs;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        // Enable dynamic colors on Android 12+ (Material You)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            try {
+                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
+            }
+        }
+        
+        setContentView(R.layout.activity_schedules);
+
+        TermuxThemeUtils.setAppNightMode(this);
+        AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);
+
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setTitle(getString(R.string.menu_schedules));
+            }
+            toolbar.setNavigationOnClickListener(v -> finish());
+        }
+
+        recyclerView = findViewById(R.id.recycler_schedules);
+        emptyStateView = findViewById(R.id.textview_empty_state);
+        prefs = getSharedPreferences("BackupSettings", MODE_PRIVATE);
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        
+        findViewById(R.id.button_clear_all).setOnClickListener(v -> confirmClearAll());
+        
+        loadScheduleHistory();
+    }
+
+    private void confirmClearAll() {
+        try {
+            String historyJson = prefs.getString("backup_history", "[]");
+            JSONArray historyArray = new JSONArray(historyJson);
+            int count = historyArray.length();
+            
+            if (count == 0) {
+                Toast.makeText(this, R.string.no_backup_history, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.confirm_clear_all)
+                    .setMessage(getString(R.string.confirm_clear_all_message, count))
+                    .setPositiveButton(R.string.action_clear_all, (dialog, which) -> {
+                        prefs.edit().putString("backup_history", "[]").apply();
+                        loadScheduleHistory();
+                        Toast.makeText(this, R.string.all_schedules_cleared, Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .show();
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to clear history: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        TermuxTaskerApplication.setLogConfig(this, false);
+        Logger.logVerbose(LOG_TAG, "onResume");
+    }
+
+    private void loadScheduleHistory() {
+        String historyJson = prefs.getString("backup_history", "[]");
+        
+        try {
+            JSONArray historyArray = new JSONArray(historyJson);
+            
+            if (historyArray.length() == 0) {
+                emptyStateView.setVisibility(View.VISIBLE);
+                recyclerView.setVisibility(View.GONE);
+            } else {
+                emptyStateView.setVisibility(View.GONE);
+                recyclerView.setVisibility(View.VISIBLE);
+                
+                List<BackupHistoryItem> items = new ArrayList<>();
+                for (int i = historyArray.length() - 1; i >= 0; i--) {
+                    JSONObject item = historyArray.getJSONObject(i);
+                    items.add(new BackupHistoryItem(
+                        i,
+                        item.getLong("timestamp"),
+                        item.getString("status"),
+                        item.optString("message", ""),
+                        item.optString("category", "Manual")
+                    ));
+                }
+                
+                recyclerView.setAdapter(new ScheduleAdapter(items));
+            }
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to load history: " + e.getMessage());
+            emptyStateView.setVisibility(View.VISIBLE);
+            recyclerView.setVisibility(View.GONE);
+        }
+    }
+
+    private void deleteSchedule(int position) {
+        try {
+            String historyJson = prefs.getString("backup_history", "[]");
+            JSONArray historyArray = new JSONArray(historyJson);
+            
+            int actualIndex = historyArray.length() - 1 - position;
+            if (actualIndex >= 0 && actualIndex < historyArray.length()) {
+                historyArray.remove(actualIndex);
+                prefs.edit().putString("backup_history", historyArray.toString()).apply();
+                loadScheduleHistory();
+                Toast.makeText(this, R.string.schedule_deleted, Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to delete schedule: " + e.getMessage());
+        }
+    }
+
+    private static class BackupHistoryItem {
+        int position;
+        long timestamp;
+        String status;
+        String message;
+        String category;
+
+        BackupHistoryItem(int position, long timestamp, String status, String message, String category) {
+            this.position = position;
+            this.timestamp = timestamp;
+            this.status = status;
+            this.message = message;
+            this.category = category;
+        }
+    }
+
+    private class ScheduleAdapter extends RecyclerView.Adapter<ScheduleViewHolder> {
+        private List<BackupHistoryItem> items;
+
+        ScheduleAdapter(List<BackupHistoryItem> items) {
+            this.items = items;
+        }
+
+        @Override
+        public ScheduleViewHolder onCreateViewHolder(android.view.ViewGroup parent, int viewType) {
+            View view = getLayoutInflater().inflate(R.layout.schedule_item, parent, false);
+            return new ScheduleViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(ScheduleViewHolder holder, int position) {
+            BackupHistoryItem item = items.get(position);
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
+            holder.timeView.setText(sdf.format(new Date(item.timestamp)));
+            holder.categoryView.setText(item.category.toUpperCase());
+            holder.statusView.setText(item.status + (item.message.isEmpty() ? "" : " - " + item.message));
+            
+            holder.deleteButton.setOnClickListener(v -> {
+                deleteSchedule(position);
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return items.size();
+        }
+    }
+
+    private static class ScheduleViewHolder extends RecyclerView.ViewHolder {
+        TextView timeView;
+        TextView categoryView;
+        TextView statusView;
+        Button deleteButton;
+
+        ScheduleViewHolder(View itemView) {
+            super(itemView);
+            timeView = itemView.findViewById(R.id.textview_time);
+            categoryView = itemView.findViewById(R.id.textview_category);
+            statusView = itemView.findViewById(R.id.textview_status);
+            deleteButton = itemView.findViewById(R.id.button_delete);
+        }
+    }
+}
+
