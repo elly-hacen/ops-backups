@@ -33,6 +33,9 @@ public class SchedulesActivity extends AppCompatActivity {
     private static final String LOG_TAG = "SchedulesActivity";
     private RecyclerView recyclerView;
     private TextView emptyStateView;
+    private TextView totalBackupsView;
+    private TextView successCountView;
+    private TextView failedCountView;
     private SharedPreferences prefs;
 
     @Override
@@ -65,6 +68,9 @@ public class SchedulesActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recycler_schedules);
         emptyStateView = findViewById(R.id.textview_empty_state);
+        totalBackupsView = findViewById(R.id.textview_total_backups);
+        successCountView = findViewById(R.id.textview_success_count);
+        failedCountView = findViewById(R.id.textview_failed_count);
         prefs = getSharedPreferences("BackupSettings", MODE_PRIVATE);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -112,6 +118,32 @@ public class SchedulesActivity extends AppCompatActivity {
         
         try {
             JSONArray historyArray = new JSONArray(historyJson);
+            
+            // Calculate stats
+            int totalBackups = historyArray.length();
+            int successCount = 0;
+            int failedCount = 0;
+            
+            for (int i = 0; i < historyArray.length(); i++) {
+                JSONObject item = historyArray.getJSONObject(i);
+                String status = item.optString("status", "");
+                if (status.equals("Completed")) {
+                    successCount++;
+                } else if (!status.equals("Scheduled") && !status.equals("Queued")) {
+                    failedCount++;
+                }
+            }
+            
+            // Update stats views
+            if (totalBackupsView != null) {
+                totalBackupsView.setText(String.valueOf(totalBackups));
+            }
+            if (successCountView != null) {
+                successCountView.setText(String.valueOf(successCount));
+            }
+            if (failedCountView != null) {
+                failedCountView.setText(String.valueOf(failedCount));
+            }
             
             if (historyArray.length() == 0) {
                 emptyStateView.setVisibility(View.VISIBLE);

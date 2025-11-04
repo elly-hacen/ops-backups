@@ -16,11 +16,14 @@ import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,10 +31,8 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-import androidx.core.view.GravityCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
-
-import com.google.android.material.navigation.NavigationView;
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.google.android.material.card.MaterialCardView;
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.NetworkType;
@@ -50,7 +51,9 @@ import com.termux.tasker.R;
 import com.termux.tasker.TermuxTaskerApplication;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -62,13 +65,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
     private TextView backupStatusTextView;
     private TextView lastBackupTextView;
+    private View progressBackup;
     private MaterialSwitch scheduleSwitch;
     private AutoCompleteTextView intervalSpinner;
     private CheckBox wifiOnlyCheckbox;
     private CheckBox chargingOnlyCheckbox;
     private Button testScheduleButton;
     private SharedPreferences prefs;
-    private DrawerLayout drawerLayout;
+    private BottomSheetBehavior<androidx.core.widget.NestedScrollView> bottomSheetBehavior;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,52 +93,98 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         TermuxThemeUtils.setAppNightMode(this);
         AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);
 
-        // Setup drawer and toolbar
-        drawerLayout = findViewById(R.id.drawer_layout);
-        NavigationView navigationView = findViewById(R.id.nav_view);
-        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        // Setup bottom sheet menu
+        androidx.core.widget.NestedScrollView bottomSheet = findViewById(R.id.bottom_sheet);
+        bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
+        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        bottomSheetBehavior.setHideable(true);
+        bottomSheetBehavior.setSkipCollapsed(true);
         
-        if (toolbar != null) {
-            setSupportActionBar(toolbar);
-            if (getSupportActionBar() != null) {
-                getSupportActionBar().setDisplayShowTitleEnabled(true);
-                getSupportActionBar().setTitle(getString(R.string.app_title));
-            }
+        // Setup floating menu button
+        View menuButton = findViewById(R.id.menu_icon);
+        if (menuButton != null) {
+            // Load and start continuous pulse animation
+            final Animation pulseAnim = AnimationUtils.loadAnimation(this, R.anim.bounce);
+            menuButton.post(() -> menuButton.startAnimation(pulseAnim));
             
-            // Setup menu icon on right side
-            findViewById(R.id.menu_icon).setOnClickListener(v -> {
-                Logger.logInfo(LOG_TAG, "Menu icon clicked");
-                if (drawerLayout != null) {
-                    drawerLayout.openDrawer(GravityCompat.END);
-                    Logger.logInfo(LOG_TAG, "Drawer opened");
+            menuButton.setOnClickListener(v -> {
+                Logger.logInfo(LOG_TAG, "Menu button clicked");
+                if (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
+                    menuButton.clearAnimation();
+                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+                } else {
+                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
                 }
             });
         }
+        
+        // Setup scrim overlay
+        View scrim = findViewById(R.id.scrim);
+        if (scrim != null) {
+            scrim.setOnClickListener(v -> {
+                if (bottomSheetBehavior.getState() != BottomSheetBehavior.STATE_HIDDEN) {
+                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+                }
+            });
+        }
+        
+        // Dim background when sheet is shown
+        bottomSheetBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+            @Override
+            public void onStateChanged(@androidx.annotation.NonNull View bottomSheet, int newState) {
+                if (scrim != null) {
+                    if (newState == BottomSheetBehavior.STATE_HIDDEN) {
+                        scrim.setVisibility(View.GONE);
+                        // Restart animation when sheet is hidden
+                        if (menuButton != null) {
+                            Animation pulseAnim = AnimationUtils.loadAnimation(TermuxTaskerMainActivity.this, R.anim.bounce);
+                            menuButton.startAnimation(pulseAnim);
+                        }
+                    } else {
+                        scrim.setVisibility(View.VISIBLE);
+                    }
+                }
+            }
 
-        // Setup navigation drawer
-        if (navigationView != null) {
-            navigationView.setNavigationItemSelectedListener(item -> {
-                int id = item.getItemId();
-                Logger.logInfo(LOG_TAG, "Drawer menu item clicked: " + id);
-                if (id == R.id.nav_schedules) {
-                    startActivity(new Intent(this, SchedulesActivity.class));
-                } else if (id == R.id.nav_usage_guide) {
-                    startActivity(new Intent(this, UsageGuideActivity.class));
-                } else if (id == R.id.nav_about) {
-                    showAboutDialog();
-                } else if (id == R.id.nav_check_updates) {
-                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.update_url)));
-                    startActivity(browserIntent);
+            @Override
+            public void onSlide(@androidx.annotation.NonNull View bottomSheet, float slideOffset) {
+                if (scrim != null && slideOffset > 0) {
+                    scrim.setAlpha(slideOffset);
+                    scrim.setVisibility(View.VISIBLE);
                 }
-                drawerLayout.closeDrawer(GravityCompat.END);
-                return true;
-            });
-        } else {
-            Logger.logError(LOG_TAG, "NavigationView is null!");
-        }
+            }
+        });
+
+        // Setup bottom sheet menu items
+        findViewById(R.id.menu_schedules).setOnClickListener(v -> {
+            startActivity(new Intent(this, SchedulesActivity.class));
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        });
+        
+        findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
+            startActivity(new Intent(this, UsageGuideActivity.class));
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        });
+        
+        findViewById(R.id.menu_scripts).setOnClickListener(v -> {
+            startActivity(new Intent(this, ScriptsManagementActivity.class));
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        });
+        
+        findViewById(R.id.menu_check_updates).setOnClickListener(v -> {
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.update_url)));
+            startActivity(browserIntent);
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        });
+        
+        findViewById(R.id.menu_about).setOnClickListener(v -> {
+            showAboutDialog();
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        });
 
         backupStatusTextView = findViewById(R.id.textview_backup_status);
         lastBackupTextView = findViewById(R.id.textview_last_backup);
+        progressBackup = findViewById(R.id.progress_backup);
         scheduleSwitch = findViewById(R.id.switch_enable_schedule);
         intervalSpinner = findViewById(R.id.spinner_interval);
         wifiOnlyCheckbox = findViewById(R.id.checkbox_wifi_only);
@@ -151,12 +201,20 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         updateBackupStatus("");
         updateLastBackupTime();
 
-        // Handle back button for drawer
+        // Check if first run
+        if (!prefs.getBoolean("setup_completed", false)) {
+            String termuxError = getTermuxAccessibilityError();
+            if (termuxError != null) {
+                startActivity(new Intent(this, SetupWizardActivity.class));
+            }
+        }
+
+        // Handle back button for bottom sheet
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.END)) {
-                    drawerLayout.closeDrawer(GravityCompat.END);
+                if (bottomSheetBehavior.getState() != BottomSheetBehavior.STATE_HIDDEN) {
+                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
                 } else {
                     setEnabled(false);
                     getOnBackPressedDispatcher().onBackPressed();
@@ -180,21 +238,24 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
+                .setCancelable(true)
                 .create();
         
-        // Setup buttons
+        // Blur background
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setDimAmount(0.75f);
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        // Setup button
         Button checkUpdatesButton = dialogView.findViewById(R.id.button_check_updates);
-        Button closeButton = dialogView.findViewById(R.id.button_close);
         
         if (checkUpdatesButton != null) {
             checkUpdatesButton.setOnClickListener(v -> {
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.update_url)));
                 startActivity(browserIntent);
+                dialog.dismiss();
             });
-        }
-        
-        if (closeButton != null) {
-            closeButton.setOnClickListener(v -> dialog.dismiss());
         }
         
         dialog.show();
@@ -208,19 +269,65 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             return;
         }
 
-        updateBackupStatus(getString(R.string.status_backup_running));
-
-        // Run the user's backup script
-        final String script = "if [ -f ~/.termux/tasker/op-backup.sh ]; then bash ~/.termux/tasker/op-backup.sh; else echo 'Script not found at ~/.termux/tasker/op-backup.sh'; exit 1; fi";
-        String error = startBackgroundCommand(script);
-        if (error == null) {
-            saveLastBackupTime();
-            updateBackupStatus(getString(R.string.status_backup_success));
-            Toast.makeText(this, getString(R.string.status_backup_success), Toast.LENGTH_SHORT).show();
-        } else {
-            updateBackupStatus(error);
-            Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+        // Get enabled scripts
+        List<String> enabledScripts = getEnabledScripts();
+        if (enabledScripts.isEmpty()) {
+            updateBackupStatus(getString(R.string.no_enabled_scripts));
+            Toast.makeText(this, R.string.no_enabled_scripts, Toast.LENGTH_LONG).show();
+            return;
         }
+
+        updateBackupStatus(getString(R.string.executing_scripts, enabledScripts.size()));
+        showProgress(true);
+
+        // Execute all enabled scripts
+        StringBuilder combinedScript = new StringBuilder();
+        for (int i = 0; i < enabledScripts.size(); i++) {
+            String scriptPath = enabledScripts.get(i);
+            if (i > 0) combinedScript.append(" && ");
+            combinedScript.append("if [ -f ").append(scriptPath).append(" ]; then bash ").append(scriptPath)
+                    .append("; else echo 'Script not found: ").append(scriptPath).append("'; fi");
+        }
+
+        String error = startBackgroundCommand(combinedScript.toString());
+        
+        // Hide progress after 3 seconds
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            showProgress(false);
+            if (error == null) {
+                saveLastBackupTime();
+                updateBackupStatus(getString(R.string.all_scripts_executed));
+                showSuccessDialog(enabledScripts.size());
+            } else {
+                updateBackupStatus(error);
+                Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+            }
+        }, 3000);
+    }
+
+    private List<String> getEnabledScripts() {
+        List<String> scripts = new ArrayList<>();
+        try {
+            String scriptsJson = prefs.getString("backup_scripts", "[]");
+            org.json.JSONArray scriptsArray = new org.json.JSONArray(scriptsJson);
+            
+            for (int i = 0; i < scriptsArray.length(); i++) {
+                org.json.JSONObject script = scriptsArray.getJSONObject(i);
+                if (script.optBoolean("enabled", true)) {
+                    scripts.add(script.getString("path"));
+                }
+            }
+            
+            // Fallback to default if no scripts configured
+            if (scripts.isEmpty() && scriptsArray.length() == 0) {
+                scripts.add(getString(R.string.default_script_path));
+            }
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to load scripts: " + e.getMessage());
+            // Fallback to default script
+            scripts.add(getString(R.string.default_script_path));
+        }
+        return scripts;
     }
 
     private String getTermuxAccessibilityError() {
@@ -280,11 +387,52 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         backupStatusTextView.setText(message);
     }
 
+    private void showProgress(boolean show) {
+        if (progressBackup != null) {
+            progressBackup.setVisibility(show ? View.VISIBLE : View.GONE);
+        }
+        Button backupButton = findViewById(R.id.button_run_backup);
+        if (backupButton != null) {
+            backupButton.setEnabled(!show);
+            backupButton.setAlpha(show ? 0.6f : 1.0f);
+        }
+    }
+
+    private void showSuccessDialog(int scriptCount) {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_backup_success, null);
+        
+        TextView scriptsCountView = dialogView.findViewById(R.id.textview_scripts_count);
+        TextView lastBackupView = dialogView.findViewById(R.id.textview_last_backup_time);
+        
+        if (scriptsCountView != null) {
+            scriptsCountView.setText(String.format("%d script(s) executed successfully", scriptCount));
+        }
+        
+        if (lastBackupView != null) {
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MMM dd, yyyy HH:mm:ss", java.util.Locale.getDefault());
+            lastBackupView.setText(sdf.format(new java.util.Date()));
+        }
+        
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create();
+        
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setDimAmount(0.75f);
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        dialogView.findViewById(R.id.button_ok).setOnClickListener(v -> dialog.dismiss());
+        
+        dialog.show();
+    }
+
     private void setupScheduleUI() {
         // Setup interval dropdown
         String[] intervals = getResources().getStringArray(R.array.backup_intervals);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_dropdown_item_1line, intervals);
+                R.layout.dropdown_item, intervals);
         intervalSpinner.setAdapter(adapter);
 
         // Load saved settings
@@ -501,6 +649,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             String historyJson = prefs.getString("backup_history", "[]");
             org.json.JSONArray historyArray = new org.json.JSONArray(historyJson);
             
+            // Remove oldest entries if we're at the limit
+            while (historyArray.length() >= 50) {
+                historyArray.remove(0);
+            }
+            
             org.json.JSONObject event = new org.json.JSONObject();
             event.put("timestamp", System.currentTimeMillis());
             event.put("status", status);
@@ -511,11 +664,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             String[] intervals = getResources().getStringArray(R.array.backup_intervals);
             event.put("category", intervals[intervalIndex]);
             
-            // Keep only last 50 entries
+            // Add the new event
             historyArray.put(event);
-            if (historyArray.length() > 50) {
-                historyArray.remove(0);
-            }
             
             prefs.edit().putString("backup_history", historyArray.toString()).apply();
         } catch (Exception e) {

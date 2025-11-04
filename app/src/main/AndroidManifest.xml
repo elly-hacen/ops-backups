@@ -37,6 +37,18 @@
             android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
             android:parentActivityName=".activities.TermuxTaskerMainActivity" />
 
+        <activity
+            android:name=".activities.ScriptsManagementActivity"
+            android:exported="false"
+            android:label="@string/menu_scripts"
+            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar"
+            android:parentActivityName=".activities.TermuxTaskerMainActivity" />
+
+        <activity
+            android:name=".activities.SetupWizardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BaseActivity.DayNight.NoActionBar" />
+
     </application>
 
 </manifest>

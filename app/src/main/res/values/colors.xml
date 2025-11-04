@@ -32,6 +32,7 @@
     <color name="md_theme_light_outlineVariant">#CAC4D0</color>
     <color name="md_theme_light_surfaceContainer">#F3EDF7</color>
     <color name="md_theme_light_surfaceContainerHighest">#E6E0E9</color>
+    <color name="md_theme_light_surfaceContainerLowest">#FFFFFF</color>
     
     <!-- Legacy colors for backward compatibility -->
     <color name="colorPrimary">@color/md_theme_light_primary</color>

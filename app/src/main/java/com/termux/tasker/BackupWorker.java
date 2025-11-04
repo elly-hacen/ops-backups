@@ -27,11 +27,25 @@ public class BackupWorker extends Worker {
 
         Context context = getApplicationContext();
 
-        // Run the backup script
+        // Get enabled scripts
+        java.util.List<String> enabledScripts = getEnabledScripts(context);
+        if (enabledScripts.isEmpty()) {
+            Logger.logError(LOG_TAG, "No enabled scripts configured");
+            return Result.failure();
+        }
+
+        // Build combined script command
+        StringBuilder combinedScript = new StringBuilder("echo '[AUTO BACKUP TRIGGERED]' >> ~/.termux/tasker/run-command.log");
+        for (String scriptPath : enabledScripts) {
+            combinedScript.append(" && if [ -f ").append(scriptPath).append(" ]; then bash ").append(scriptPath)
+                    .append("; else echo 'Script not found: ").append(scriptPath).append("' >> ~/.termux/tasker/run-command.log; fi");
+        }
+
+        // Run the backup scripts
         Intent intent = new Intent("com.termux.RUN_COMMAND");
         intent.setClassName(TermuxConstants.TERMUX_PACKAGE_NAME, "com.termux.app.RunCommandService");
         intent.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
-        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", "echo '[AUTO BACKUP TRIGGERED]' >> ~/.termux/tasker/run-command.log && bash ~/.termux/tasker/op-backup.sh"});
+        intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-lc", combinedScript.toString()});
         intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
         intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
 
@@ -54,6 +68,32 @@ public class BackupWorker extends Worker {
             Logger.logError(LOG_TAG, "Failed to trigger backup: " + e.getMessage());
             return Result.failure();
         }
+    }
+
+    private java.util.List<String> getEnabledScripts(Context context) {
+        java.util.List<String> scripts = new java.util.ArrayList<>();
+        try {
+            String scriptsJson = context.getSharedPreferences("BackupSettings", Context.MODE_PRIVATE)
+                    .getString("backup_scripts", "[]");
+            org.json.JSONArray scriptsArray = new org.json.JSONArray(scriptsJson);
+            
+            for (int i = 0; i < scriptsArray.length(); i++) {
+                org.json.JSONObject script = scriptsArray.getJSONObject(i);
+                if (script.optBoolean("enabled", true)) {
+                    scripts.add(script.getString("path"));
+                }
+            }
+            
+            // Fallback to default if no scripts configured
+            if (scripts.isEmpty() && scriptsArray.length() == 0) {
+                scripts.add("~/.termux/tasker/op-backup.sh");
+            }
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to load scripts: " + e.getMessage());
+            // Fallback to default script
+            scripts.add("~/.termux/tasker/op-backup.sh");
+        }
+        return scripts;
     }
 }
 

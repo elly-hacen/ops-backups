@@ -23,13 +23,6 @@ android {
     }
 
     signingConfigs {
-        release {
-            storeFile file('ops-release.jks')
-            keyAlias 'ops-key'
-            storePassword 'ops123456'
-            keyPassword 'ops123456'
-        }
-        
         debug {
             storeFile file('testkey_untrusted.jks')
             keyAlias 'alias'
@@ -39,15 +32,8 @@ android {
     }
 
     buildTypes {
-        release {
-            minifyEnabled true
-            shrinkResources false // Reproducible builds
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
-        }
-
         debug {
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.debug
             zipAlignEnabled true
         }
     }
@@ -62,7 +48,7 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            outputFileName = new File("termux-tasker-app_" +
+            outputFileName = new File("ops-backups_" +
                     (apkVersionTag ? apkVersionTag : "v" + versionName + "+" + variant.buildType.name) + ".apk")
         }
     }

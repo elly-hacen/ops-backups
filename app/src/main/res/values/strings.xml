@@ -2,11 +2,12 @@
 
 <resources>
     <string name="application_name">ops</string>
-    <string name="app_title">ops</string>
+    <string name="app_title">OPS BACKUPS</string>
     <string name="drawer_subtitle">Automated Android Backups</string>
 
     <!-- Menu -->
     <string name="menu_schedules">Schedules</string>
+    <string name="menu_scripts">Script Manager</string>
     <string name="menu_usage_guide">Usage Guide</string>
     <string name="menu_about">About</string>
     <string name="about_title">About ops</string>
@@ -22,16 +23,16 @@
     <string name="confirm_clear_all_message">This will delete all %1$d entries. This action cannot be undone.</string>
     <string name="cancel">Cancel</string>
     <string name="about_version">Version 1.0.0</string>
-    <string name="about_description">Backup your open source apps data to private GitHub repository using Termux. Automated, secure, and reliable.</string>
+    <string name="about_description">Yet another ops - Termux plugin to execute your scripts and dump data over ssh to a private GitHub repo whenever you poke it or let the timer run.</string>
     <string name="about_features_title">Features</string>
-    <string name="about_features">• Automatic scheduled backups\n• WiFi and charging conditions\n• Manual backup trigger\n• Git version control</string>
+    <string name="about_features">• Execute single or multiple scripts\n• Scheduled automation with conditions\n• Manual trigger on demand\n• Script manager with enable/disable</string>
     <string name="about_developer_title">Developer</string>
     <string name="about_developer_name">Ali Hassan</string>
     <string name="about_developer_github">github.com/elly-hacen</string>
     <string name="about_developer_email">ellyhacen@owerflow.dev</string>
     <string name="dialog_ok">Close</string>
     <string name="action_check_updates">Check for Updates</string>
-    <string name="update_url">https://github.com/elly-hacen/termux-tasker/releases</string>
+    <string name="update_url">https://github.com/elly-hacen/ops-backups</string>
 
     <!-- Main Activity -->
     <string name="card_backup_title">Manual Backup</string>
@@ -62,6 +63,43 @@
         <item>Once daily</item>
         <item>Twice daily</item>
     </string-array>
+
+    <!-- Script Management -->
+    <string name="scripts_title">Script Manager</string>
+    <string name="scripts_subtitle">Configure backup scripts to execute</string>
+    <string name="no_scripts_configured">No scripts configured yet</string>
+    <string name="empty_state_hint">Tap the button above to add your first backup script</string>
+    <string name="quick_setup">Quick Setup</string>
+    <string name="stats_total_backups">Total Backups</string>
+    <string name="stats_this_week">This Week</string>
+    <string name="stats_success_rate">Success Rate</string>
+    <string name="add_script">Add Script</string>
+    <string name="edit_script">Edit Script</string>
+    <string name="delete_script">Delete Script</string>
+    <string name="script_path">Script Path</string>
+    <string name="script_name">Script Name</string>
+    <string name="script_name_hint">Backup to GitHub</string>
+    <string name="script_path_hint">~/.termux/tasker/op-backup.sh</string>
+    <string name="script_path_helper">Full path in Termux. Must start with / or ~/</string>
+    <string name="error_invalid_script_path">Path must start with / or ~/</string>
+    <string name="browse_files">Browse</string>
+    <string name="select_common_path">Select Common Path</string>
+    <string name="select_path">Select Path</string>
+    <string name="custom_path">Custom Path</string>
+    <string name="save_script">Save</string>
+    <string name="script_saved">Script saved</string>
+    <string name="script_deleted">Script deleted</string>
+    <string name="error_empty_script_name">Script name cannot be empty</string>
+    <string name="error_empty_script_path">Script path cannot be empty</string>
+    <string name="confirm_delete_script">Delete this script?</string>
+    <string name="confirm_delete_script_message">This will remove \"%1$s\" from your script list.</string>
+    <string name="script_enabled">Enabled</string>
+    <string name="default_script_name">Backup Script</string>
+    <string name="default_script_path">~/.termux/tasker/op-backup.sh</string>
+    <string name="executing_scripts">Executing %1$d script(s)…</string>
+    <string name="all_scripts_executed">All scripts executed</string>
+    <string name="no_enabled_scripts">No enabled scripts configured</string>
+    <string name="common_script_paths">Examples: ~/.termux/tasker/backup.sh or ~/storage/shared/backup.sh</string>
 
     <!-- Errors -->
     <string name="error_termux_not_installed">Termux app is not installed</string>
