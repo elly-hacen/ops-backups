@@ -73,6 +73,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private Button testScheduleButton;
     private SharedPreferences prefs;
     private BottomSheetBehavior<androidx.core.widget.NestedScrollView> bottomSheetBehavior;
+    private int versionClickCount = 0;
+    private long lastVersionClickTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -117,7 +119,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                 }
             });
         }
-        
+
         // Setup scrim overlay
         View scrim = findViewById(R.id.scrim);
         if (scrim != null) {
@@ -157,12 +159,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
         // Setup bottom sheet menu items
         findViewById(R.id.menu_schedules).setOnClickListener(v -> {
-            startActivity(new Intent(this, SchedulesActivity.class));
+                    startActivity(new Intent(this, SchedulesActivity.class));
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
         
         findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
-            startActivity(new Intent(this, UsageGuideActivity.class));
+                    startActivity(new Intent(this, UsageGuideActivity.class));
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
         
@@ -172,8 +174,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         });
         
         findViewById(R.id.menu_check_updates).setOnClickListener(v -> {
-            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.update_url)));
-            startActivity(browserIntent);
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.update_url)));
+                    startActivity(browserIntent);
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
         
@@ -200,6 +202,29 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
         updateBackupStatus("");
         updateLastBackupTime();
+
+        // Easter egg - triple click version
+        TextView versionView = findViewById(R.id.textview_version);
+        if (versionView != null) {
+            versionView.setOnClickListener(v -> {
+                long currentTime = System.currentTimeMillis();
+                
+                // Reset counter if more than 2 seconds since last click
+                if (currentTime - lastVersionClickTime > 2000) {
+                    versionClickCount = 0;
+                }
+                
+                versionClickCount++;
+                lastVersionClickTime = currentTime;
+                
+                if (versionClickCount == 3) {
+                    // Triple click detected - open website
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://owerflow.dev"));
+                    startActivity(browserIntent);
+                    versionClickCount = 0;
+                }
+            });
+        }
 
         // Check if first run
         if (!prefs.getBoolean("setup_completed", false)) {
@@ -294,14 +319,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         // Hide progress after 3 seconds
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             showProgress(false);
-            if (error == null) {
-                saveLastBackupTime();
+        if (error == null) {
+            saveLastBackupTime();
                 updateBackupStatus(getString(R.string.all_scripts_executed));
                 showSuccessDialog(enabledScripts.size());
-            } else {
-                updateBackupStatus(error);
-                Toast.makeText(this, error, Toast.LENGTH_LONG).show();
-            }
+        } else {
+            updateBackupStatus(error);
+            Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+        }
         }, 3000);
     }
 
@@ -485,7 +510,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             if (scheduleSwitch.isChecked()) {
                 scheduleBackupWork();
             }
+            updateIntervalPreview(position);
         });
+        
+        // Show initial preview
+        updateIntervalPreview(intervalIndex);
 
         wifiOnlyCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean("wifi_only", isChecked).apply();
@@ -639,6 +668,26 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             case 3: return 24;  // Once daily
             case 4: return 12;  // Twice daily (will run every 12 hours)
             default: return 24;
+        }
+    }
+
+    private void updateIntervalPreview(int intervalIndex) {
+        com.google.android.material.textfield.TextInputLayout intervalLayout = findViewById(R.id.layout_interval);
+        if (intervalLayout != null) {
+            long hours = getIntervalHours(intervalIndex);
+            long lastBackup = prefs.getLong("last_backup_time", 0);
+            
+            if (lastBackup > 0) {
+                long nextRun = lastBackup + (hours * 60 * 60 * 1000);
+                long hoursUntil = (nextRun - System.currentTimeMillis()) / (60 * 60 * 1000);
+                if (hoursUntil > 0) {
+                    intervalLayout.setHelperText("Next run in ~" + hoursUntil + "h");
+                } else {
+                    intervalLayout.setHelperText("Due now");
+                }
+            } else {
+                intervalLayout.setHelperText("Runs every " + hours + " hours");
+            }
         }
     }
 

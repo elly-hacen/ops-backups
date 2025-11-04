@@ -39,6 +39,7 @@ public class UsageGuideActivity extends AppCompatActivity {
             setSupportActionBar(toolbar);
             if (getSupportActionBar() != null) {
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_close);
                 getSupportActionBar().setTitle(getString(R.string.menu_usage_guide));
             }
             toolbar.setNavigationOnClickListener(v -> finish());

@@ -2,7 +2,7 @@
 
 <resources>
     <string name="application_name">Ops</string>
-    <string name="app_title">OPS BACKUPS</string>
+    <string name="app_title">Ops</string>
     <string name="drawer_subtitle">Automated Android Backups</string>
 
     <!-- Menu -->

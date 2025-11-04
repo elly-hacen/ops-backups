@@ -1,5 +1,8 @@
 package com.termux.tasker.activities;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
@@ -60,6 +63,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
             setSupportActionBar(toolbar);
             if (getSupportActionBar() != null) {
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_close);
                 getSupportActionBar().setTitle(getString(R.string.menu_scripts));
             }
             toolbar.setNavigationOnClickListener(v -> finish());
@@ -334,6 +338,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
             float alpha = item.enabled ? 1.0f : 0.5f;
             holder.nameView.setAlpha(alpha);
             holder.pathView.setAlpha(alpha);
+            holder.copyButton.setAlpha(alpha);
             holder.editButton.setAlpha(alpha);
             holder.deleteButton.setAlpha(alpha);
             holder.itemView.setAlpha(item.enabled ? 1.0f : 0.7f);
@@ -344,9 +349,17 @@ public class ScriptsManagementActivity extends AppCompatActivity {
                 float newAlpha = isChecked ? 1.0f : 0.5f;
                 holder.nameView.setAlpha(newAlpha);
                 holder.pathView.setAlpha(newAlpha);
+                holder.copyButton.setAlpha(newAlpha);
                 holder.editButton.setAlpha(newAlpha);
                 holder.deleteButton.setAlpha(newAlpha);
                 holder.itemView.setAlpha(isChecked ? 1.0f : 0.7f);
+            });
+            
+            holder.copyButton.setOnClickListener(v -> {
+                ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipData clip = ClipData.newPlainText("Script Path", item.path);
+                clipboard.setPrimaryClip(clip);
+                Toast.makeText(ScriptsManagementActivity.this, "Path copied", Toast.LENGTH_SHORT).show();
             });
             
             holder.editButton.setOnClickListener(v -> {
@@ -368,6 +381,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
         MaterialTextView nameView;
         MaterialTextView pathView;
         MaterialCheckBox enabledCheckbox;
+        MaterialButton copyButton;
         MaterialButton editButton;
         MaterialButton deleteButton;
 
@@ -376,6 +390,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
             nameView = itemView.findViewById(R.id.textview_script_name);
             pathView = itemView.findViewById(R.id.textview_script_path);
             enabledCheckbox = itemView.findViewById(R.id.checkbox_enabled);
+            copyButton = itemView.findViewById(R.id.button_copy);
             editButton = itemView.findViewById(R.id.button_edit);
             deleteButton = itemView.findViewById(R.id.button_delete);
         }

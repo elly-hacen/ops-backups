@@ -63,6 +63,7 @@ public class SchedulesActivity extends AppCompatActivity {
             setSupportActionBar(toolbar);
             if (getSupportActionBar() != null) {
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_close);
                 getSupportActionBar().setTitle(getString(R.string.menu_schedules));
             }
             toolbar.setNavigationOnClickListener(v -> finish());

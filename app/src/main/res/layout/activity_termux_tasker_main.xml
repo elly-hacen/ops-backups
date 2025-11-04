@@ -174,7 +174,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
-                        android:hint="@string/schedule_interval">
+                        android:hint="@string/schedule_interval"
+                        app:helperTextEnabled="true"
+                        app:helperText="Runs every 24 hours">
 
                         <AutoCompleteTextView
                             android:id="@+id/spinner_interval"
@@ -285,6 +287,20 @@
                 android:focusable="true"
                 android:background="@android:color/transparent"
                 android:scaleType="fitCenter" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/textview_version"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="12dp"
+                android:text="v1.0.0"
+                android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:alpha="0.6"
+                android:textSize="10sp"
+                android:clickable="true"
+                android:focusable="true" />
 
         </FrameLayout>
 
