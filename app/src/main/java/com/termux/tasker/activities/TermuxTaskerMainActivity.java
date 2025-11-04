@@ -456,9 +456,24 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         scheduleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean("schedule_enabled", isChecked).apply();
             updateTestButtonState();
+            
+            // Visual feedback with animation
+            scheduleSwitch.animate()
+                    .scaleX(1.1f)
+                    .scaleY(1.1f)
+                    .setDuration(150)
+                    .withEndAction(() -> {
+                        scheduleSwitch.animate()
+                                .scaleX(1.0f)
+                                .scaleY(1.0f)
+                                .setDuration(150)
+                                .start();
+                    })
+                    .start();
+            
             if (isChecked) {
                 scheduleBackupWork();
-                Toast.makeText(this, "Auto backup enabled", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "✓ Auto backup enabled", Toast.LENGTH_SHORT).show();
             } else {
                 cancelBackupWork();
                 Toast.makeText(this, "Auto backup disabled", Toast.LENGTH_SHORT).show();

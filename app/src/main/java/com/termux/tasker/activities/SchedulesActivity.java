@@ -12,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.snackbar.Snackbar;
+
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
@@ -116,6 +118,11 @@ public class SchedulesActivity extends AppCompatActivity {
     private void loadScheduleHistory() {
         String historyJson = prefs.getString("backup_history", "[]");
         
+        // Show loading state
+        if (totalBackupsView != null) totalBackupsView.setText("...");
+        if (successCountView != null) successCountView.setText("...");
+        if (failedCountView != null) failedCountView.setText("...");
+        
         try {
             JSONArray historyArray = new JSONArray(historyJson);
             
@@ -134,16 +141,22 @@ public class SchedulesActivity extends AppCompatActivity {
                 }
             }
             
-            // Update stats views
-            if (totalBackupsView != null) {
-                totalBackupsView.setText(String.valueOf(totalBackups));
-            }
-            if (successCountView != null) {
-                successCountView.setText(String.valueOf(successCount));
-            }
-            if (failedCountView != null) {
-                failedCountView.setText(String.valueOf(failedCount));
-            }
+            // Update stats views with animation
+            final int finalTotal = totalBackups;
+            final int finalSuccess = successCount;
+            final int finalFailed = failedCount;
+            
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                if (totalBackupsView != null) {
+                    totalBackupsView.setText(String.valueOf(finalTotal));
+                }
+                if (successCountView != null) {
+                    successCountView.setText(String.valueOf(finalSuccess));
+                }
+                if (failedCountView != null) {
+                    failedCountView.setText(String.valueOf(finalFailed));
+                }
+            }, 250);
             
             if (historyArray.length() == 0) {
                 emptyStateView.setVisibility(View.VISIBLE);
@@ -180,10 +193,47 @@ public class SchedulesActivity extends AppCompatActivity {
             
             int actualIndex = historyArray.length() - 1 - position;
             if (actualIndex >= 0 && actualIndex < historyArray.length()) {
+                // Save deleted item for undo
+                JSONObject deletedItem = historyArray.getJSONObject(actualIndex);
+                final String deletedItemJson = deletedItem.toString();
+                final int deletedPosition = actualIndex;
+                
+                // Remove item
                 historyArray.remove(actualIndex);
-                prefs.edit().putString("backup_history", historyArray.toString()).apply();
+                final String newHistoryJson = historyArray.toString();
+                prefs.edit().putString("backup_history", newHistoryJson).apply();
                 loadScheduleHistory();
-                Toast.makeText(this, R.string.schedule_deleted, Toast.LENGTH_SHORT).show();
+                
+                // Show snackbar with undo
+                View rootView = findViewById(android.R.id.content);
+                if (rootView != null) {
+                    Snackbar.make(rootView, R.string.schedule_deleted, Snackbar.LENGTH_LONG)
+                            .setAction("Undo", v -> {
+                                try {
+                                    String currentJson = prefs.getString("backup_history", "[]");
+                                    JSONArray currentArray = new JSONArray(currentJson);
+                                    JSONObject restoredItem = new JSONObject(deletedItemJson);
+                                    
+                                    // Insert at original position
+                                    JSONArray newArray = new JSONArray();
+                                    for (int i = 0; i < currentArray.length(); i++) {
+                                        if (i == deletedPosition) {
+                                            newArray.put(restoredItem);
+                                        }
+                                        newArray.put(currentArray.get(i));
+                                    }
+                                    if (deletedPosition >= currentArray.length()) {
+                                        newArray.put(restoredItem);
+                                    }
+                                    
+                                    prefs.edit().putString("backup_history", newArray.toString()).apply();
+                                    loadScheduleHistory();
+                                } catch (Exception ex) {
+                                    Logger.logError(LOG_TAG, "Failed to undo: " + ex.getMessage());
+                                }
+                            })
+                            .show();
+                }
             }
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to delete schedule: " + e.getMessage());

@@ -188,19 +188,51 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.checkbox.MaterialCheckBox
-                        android:id="@+id/checkbox_wifi_only"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
-                        android:text="@string/schedule_wifi_only" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
-                    <com.google.android.material.checkbox.MaterialCheckBox
-                        android:id="@+id/checkbox_charging_only"
+                        <com.google.android.material.checkbox.MaterialCheckBox
+                            android:id="@+id/checkbox_wifi_only"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/schedule_wifi_only" />
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_wifi"
+                            android:layout_marginEnd="4dp"
+                            app:tint="?attr/colorPrimary" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="@string/schedule_charging_only" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <com.google.android.material.checkbox.MaterialCheckBox
+                            android:id="@+id/checkbox_charging_only"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/schedule_charging_only" />
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:src="@drawable/ic_battery"
+                            android:layout_marginEnd="4dp"
+                            app:tint="?attr/colorPrimary" />
+
+                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/button_test_schedule"

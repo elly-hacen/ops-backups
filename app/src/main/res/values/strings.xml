@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <resources>
-    <string name="application_name">ops</string>
+    <string name="application_name">Ops</string>
     <string name="app_title">OPS BACKUPS</string>
     <string name="drawer_subtitle">Automated Android Backups</string>
 
