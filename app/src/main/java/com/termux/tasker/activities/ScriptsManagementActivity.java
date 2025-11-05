@@ -202,6 +202,12 @@ public class ScriptsManagementActivity extends AppCompatActivity {
                 return;
             }
             
+            // Check for duplicate paths
+            if (isDuplicatePath(path, position)) {
+                pathLayout.setError("This script path already exists");
+                return;
+            }
+            
             pathLayout.setError(null);
             saveScript(position, name, path);
             dialog.dismiss();
@@ -224,6 +230,24 @@ public class ScriptsManagementActivity extends AppCompatActivity {
         dialog.show();
     }
 
+
+    private boolean isDuplicatePath(String path, int currentPosition) {
+        try {
+            String scriptsJson = prefs.getString("backup_scripts", "[]");
+            JSONArray scriptsArray = new JSONArray(scriptsJson);
+            
+            for (int i = 0; i < scriptsArray.length(); i++) {
+                if (i == currentPosition) continue; // Skip current item when editing
+                JSONObject script = scriptsArray.getJSONObject(i);
+                if (script.getString("path").equals(path)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to check duplicates: " + e.getMessage());
+        }
+        return false;
+    }
 
     private void saveScript(int position, String name, String path) {
         try {

@@ -1,20 +1,28 @@
 package com.termux.tasker;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxConstants;
+import com.termux.tasker.R;
+import com.termux.tasker.activities.TermuxTaskerMainActivity;
 
 public class BackupWorker extends Worker {
 
     private static final String LOG_TAG = "BackupWorker";
+    private static final String CHANNEL_ID = "backup_notifications";
+    private static final int NOTIFICATION_ID = 1001;
 
     public BackupWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -63,6 +71,9 @@ public class BackupWorker extends Worker {
                    .putLong("last_backup_time", System.currentTimeMillis())
                    .apply();
             
+            // Show notification
+            showNotification(context, "Backup Complete", "Scheduled backup executed successfully");
+            
             return Result.success();
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to trigger backup: " + e.getMessage());
@@ -94,6 +105,45 @@ public class BackupWorker extends Worker {
             scripts.add("~/.termux/tasker/op-backup.sh");
         }
         return scripts;
+    }
+
+    private void showNotification(Context context, String title, String message) {
+        createNotificationChannel(context);
+        
+        Intent intent = new Intent(context, TermuxTaskerMainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_schedule)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true);
+        
+        NotificationManager notificationManager = 
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager != null) {
+            notificationManager.notify(NOTIFICATION_ID, builder.build());
+        }
+    }
+
+    private void createNotificationChannel(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CharSequence name = "Backup Notifications";
+            String description = "Notifications for scheduled backups";
+            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
+            channel.setDescription(description);
+            
+            NotificationManager notificationManager = 
+                    context.getSystemService(NotificationManager.class);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
     }
 }
 

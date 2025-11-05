@@ -5,6 +5,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.provider.Settings;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
@@ -75,6 +76,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private BottomSheetBehavior<androidx.core.widget.NestedScrollView> bottomSheetBehavior;
     private int versionClickCount = 0;
     private long lastVersionClickTime = 0;
+    private Handler intervalUpdateHandler;
+    private Runnable intervalUpdateRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -179,6 +182,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
         
+        findViewById(R.id.menu_privacy).setOnClickListener(v -> {
+            showPrivacyDialog();
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        });
+        
         findViewById(R.id.menu_about).setOnClickListener(v -> {
             showAboutDialog();
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
@@ -226,6 +234,9 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             });
         }
 
+        // Request necessary permissions
+        requestPermissionsIfNeeded();
+
         // Check if first run
         if (!prefs.getBoolean("setup_completed", false)) {
             String termuxError = getTermuxAccessibilityError();
@@ -248,6 +259,60 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         });
     }
 
+    private void requestPermissionsIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> permissionsNeeded = new java.util.ArrayList<>();
+            
+            // File storage permission - show as popup
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Android 13+ - use new photo picker style permissions
+                if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(android.Manifest.permission.READ_EXTERNAL_STORAGE);
+                }
+            } else {
+                // Android 12 and below
+                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
+                if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(android.Manifest.permission.READ_EXTERNAL_STORAGE);
+                }
+            }
+            
+            // Notification permission (Android 13+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    permissionsNeeded.add(android.Manifest.permission.POST_NOTIFICATIONS);
+                }
+            }
+            
+            // Request all needed permissions as popup
+            if (!permissionsNeeded.isEmpty()) {
+                requestPermissions(permissionsNeeded.toArray(new String[0]), 100);
+            }
+        }
+        
+        // Check Termux RUN_COMMAND permission after other permissions
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED) {
+                showTermuxPermissionDialog();
+            }
+        }, 1500);
+    }
+
+    private void showTermuxPermissionDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Termux Permission Required")
+                .setMessage("OPS needs permission to run commands in Termux.\n\n1. Tap 'Open Settings'\n2. Scroll to Permissions\n3. Enable 'Run commands in Termux'")
+                .setPositiveButton("Open Settings", (dialog, which) -> {
+                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -256,6 +321,43 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         TermuxTaskerApplication.setLogConfig(this, false);
 
         Logger.logVerbose(LOG_TAG, "onResume");
+        
+        // Restart interval preview updater
+        startIntervalPreviewUpdater();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        
+        // Stop interval preview updater
+        stopIntervalPreviewUpdater();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        
+        // Clean up handler
+        stopIntervalPreviewUpdater();
+    }
+
+    private void showPrivacyDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_privacy, null);
+        
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create();
+        
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setDimAmount(0.75f);
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        dialogView.findViewById(R.id.button_close_privacy).setOnClickListener(v -> dialog.dismiss());
+        
+        dialog.show();
     }
 
     private void showAboutDialog() {
@@ -294,6 +396,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             return;
         }
 
+        // Check network connectivity
+        if (!isNetworkAvailable()) {
+            updateBackupStatus("No internet connection");
+            Toast.makeText(this, "No internet connection available", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         // Get enabled scripts
         List<String> enabledScripts = getEnabledScripts();
         if (enabledScripts.isEmpty()) {
@@ -305,29 +414,101 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         updateBackupStatus(getString(R.string.executing_scripts, enabledScripts.size()));
         showProgress(true);
 
-        // Execute all enabled scripts
+        // Result file in shared storage
+        String resultFile = "/sdcard/ops-backup-result.txt";
+        
+        // Execute all enabled scripts and write result to shared storage
         StringBuilder combinedScript = new StringBuilder();
+        combinedScript.append("rm -f ").append(resultFile).append(" && (");
+        
         for (int i = 0; i < enabledScripts.size(); i++) {
             String scriptPath = enabledScripts.get(i);
             if (i > 0) combinedScript.append(" && ");
-            combinedScript.append("if [ -f ").append(scriptPath).append(" ]; then bash ").append(scriptPath)
-                    .append("; else echo 'Script not found: ").append(scriptPath).append("'; fi");
+            combinedScript.append("bash ").append(scriptPath);
         }
+        
+        combinedScript.append(" && echo 'SUCCESS' > ").append(resultFile);
+        combinedScript.append(") || echo 'FAILED:Script execution error' > ").append(resultFile);
 
         String error = startBackgroundCommand(combinedScript.toString());
         
-        // Hide progress after 3 seconds
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+        if (error != null) {
             showProgress(false);
-        if (error == null) {
-            saveLastBackupTime();
-                updateBackupStatus(getString(R.string.all_scripts_executed));
-                showSuccessDialog(enabledScripts.size());
-        } else {
             updateBackupStatus(error);
             Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+            return;
         }
-        }, 3000);
+        
+        // Poll for result file
+        final int scriptCount = enabledScripts.size();
+        pollBackupResultFile(0, scriptCount, resultFile);
+    }
+
+    private void pollBackupResultFile(int attemptCount, int scriptCount, String resultFilePath) {
+        if (attemptCount > 30) {
+            // Timeout after 15 seconds
+            showProgress(false);
+            updateBackupStatus("Timeout - check Termux for errors");
+            Toast.makeText(this, "Backup timeout - check Termux logs", Toast.LENGTH_LONG).show();
+            logBackupEvent("Timeout", "Execution took too long");
+            return;
+        }
+        
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                java.io.File resultFile = new java.io.File(resultFilePath);
+                if (resultFile.exists()) {
+                    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(resultFile));
+                    String result = reader.readLine();
+                    reader.close();
+                    
+                    if (result != null) {
+                        if (result.startsWith("SUCCESS")) {
+                            showProgress(false);
+                            prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
+                            updateLastBackupTime();
+                            updateBackupStatus("Backup successful!");
+                            logBackupEvent("Completed", "Successfully pushed to GitHub");
+                            showSuccessDialog(scriptCount);
+                            resultFile.delete();
+                        } else if (result.startsWith("FAILED")) {
+                            showProgress(false);
+                            String errorMsg = result.contains(":") ? result.substring(result.indexOf(":") + 1) : "Unknown error";
+                            updateBackupStatus("Backup failed");
+                            Toast.makeText(this, "Backup failed: " + errorMsg, Toast.LENGTH_LONG).show();
+                            logBackupEvent("Failed", errorMsg);
+                            resultFile.delete();
+                        } else {
+                            pollBackupResultFile(attemptCount + 1, scriptCount, resultFilePath);
+                        }
+                    } else {
+                        pollBackupResultFile(attemptCount + 1, scriptCount, resultFilePath);
+                    }
+                } else {
+                    // File doesn't exist yet, check again
+                    pollBackupResultFile(attemptCount + 1, scriptCount, resultFilePath);
+                }
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Failed to read result file: " + e.getMessage());
+                pollBackupResultFile(attemptCount + 1, scriptCount, resultFilePath);
+            }
+        }, 500);
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (cm != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.net.Network network = cm.getActiveNetwork();
+                if (network == null) return false;
+                NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
+                return capabilities != null && 
+                       (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || 
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+            }
+        }
+        return false;
     }
 
     private List<String> getEnabledScripts() {
@@ -515,6 +696,9 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         // Show initial preview
         updateIntervalPreview(intervalIndex);
+        
+        // Start periodic interval preview updates
+        startIntervalPreviewUpdater();
 
         wifiOnlyCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean("wifi_only", isChecked).apply();
@@ -679,15 +863,52 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             
             if (lastBackup > 0) {
                 long nextRun = lastBackup + (hours * 60 * 60 * 1000);
-                long hoursUntil = (nextRun - System.currentTimeMillis()) / (60 * 60 * 1000);
-                if (hoursUntil > 0) {
-                    intervalLayout.setHelperText("Next run in ~" + hoursUntil + "h");
+                long millisUntil = nextRun - System.currentTimeMillis();
+                
+                if (millisUntil > 0) {
+                    long hoursUntil = millisUntil / (60 * 60 * 1000);
+                    long minutesUntil = (millisUntil % (60 * 60 * 1000)) / (60 * 1000);
+                    
+                    if (hoursUntil > 0) {
+                        intervalLayout.setHelperText("Next run in ~" + hoursUntil + "h " + minutesUntil + "m");
+                    } else {
+                        intervalLayout.setHelperText("Next run in ~" + minutesUntil + "m");
+                    }
                 } else {
                     intervalLayout.setHelperText("Due now");
                 }
             } else {
                 intervalLayout.setHelperText("Runs every " + hours + " hours");
             }
+        }
+    }
+
+    private void startIntervalPreviewUpdater() {
+        if (intervalUpdateHandler == null) {
+            intervalUpdateHandler = new Handler(Looper.getMainLooper());
+        }
+        
+        if (intervalUpdateRunnable == null) {
+            intervalUpdateRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    int currentIndex = prefs.getInt("interval_index", 3);
+                    updateIntervalPreview(currentIndex);
+                    intervalUpdateHandler.postDelayed(this, 60000); // Update every minute
+                }
+            };
+        }
+        
+        // Cancel any existing callbacks
+        intervalUpdateHandler.removeCallbacks(intervalUpdateRunnable);
+        
+        // Start updating
+        intervalUpdateHandler.post(intervalUpdateRunnable);
+    }
+
+    private void stopIntervalPreviewUpdater() {
+        if (intervalUpdateHandler != null && intervalUpdateRunnable != null) {
+            intervalUpdateHandler.removeCallbacks(intervalUpdateRunnable);
         }
     }
 
@@ -706,6 +927,10 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
         updateLastBackupTime();
         logBackupEvent("Completed", "Successfully pushed to GitHub");
+        
+        // Show success dialog
+        List<String> enabledScripts = getEnabledScripts();
+        showSuccessDialog(enabledScripts.size());
     }
 
     private void logBackupEvent(String status, String message) {
