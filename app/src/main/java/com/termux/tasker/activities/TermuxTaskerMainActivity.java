@@ -63,6 +63,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     public static final String LOG_TAG = "TermuxTaskerMainActivity";
     private static final String PREFS_NAME = "BackupSettings";
     private static final String WORK_NAME = "AutoBackupWork";
+    private static final String ERROR_LOG_FILE = "/sdcard/ops-error-log.json";
+    private static final long MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB
 
     private TextView backupStatusTextView;
     private TextView lastBackupTextView;
@@ -78,18 +80,22 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private long lastVersionClickTime = 0;
     private Handler intervalUpdateHandler;
     private Runnable intervalUpdateRunnable;
+    
+    // Stats card views
+    private TextView statLastBackup;
+    private TextView statStatus;
+    private View statStatusIndicator;
+    private TextView statAutoStatus;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Enable dynamic colors on Android 12+ (Material You)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            try {
-                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
-            } catch (Exception e) {
-                Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
-            }
+        // Enable dynamic colors (Material You) - Android 12+/API 31+ is our minSdk
+        try {
+            getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
         }
         
         setContentView(R.layout.activity_termux_tasker_main);
@@ -200,6 +206,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         wifiOnlyCheckbox = findViewById(R.id.checkbox_wifi_only);
         chargingOnlyCheckbox = findViewById(R.id.checkbox_charging_only);
         testScheduleButton = findViewById(R.id.button_test_schedule);
+        
+        // Stats card views
+        statLastBackup = findViewById(R.id.stat_last_backup);
+        statStatus = findViewById(R.id.stat_status);
+        statStatusIndicator = findViewById(R.id.stat_status_indicator);
+        statAutoStatus = findViewById(R.id.stat_auto_status);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
 
@@ -210,10 +222,19 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
         updateBackupStatus("");
         updateLastBackupTime();
+        updateStatsCard();
+        
+        // Show background notification if auto-backup is enabled
+        if (prefs.getBoolean("schedule_enabled", false)) {
+            BackupWorker.showBackgroundStatusNotification(this);
+        }
 
         // Easter egg - triple click version
         TextView versionView = findViewById(R.id.textview_version);
         if (versionView != null) {
+            // Set version from BuildConfig
+            versionView.setText("v" + com.termux.tasker.BuildConfig.VERSION_NAME);
+            
             versionView.setOnClickListener(v -> {
                 long currentTime = System.currentTimeMillis();
                 
@@ -260,44 +281,41 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     }
 
     private void requestPermissionsIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            java.util.List<String> permissionsNeeded = new java.util.ArrayList<>();
-            
-            // File storage permission - show as popup
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                // Android 13+ - use new photo picker style permissions
-                if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    permissionsNeeded.add(android.Manifest.permission.READ_EXTERNAL_STORAGE);
-                }
-            } else {
-                // Android 12 and below
-                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    permissionsNeeded.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
-                }
-                if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                    permissionsNeeded.add(android.Manifest.permission.READ_EXTERNAL_STORAGE);
-                }
-            }
-            
-            // Notification permission (Android 13+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    permissionsNeeded.add(android.Manifest.permission.POST_NOTIFICATIONS);
-                }
-            }
-            
-            // Request all needed permissions as popup
-            if (!permissionsNeeded.isEmpty()) {
-                requestPermissions(permissionsNeeded.toArray(new String[0]), 100);
+        // Notification permission (Android 13+) - shows as popup
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 100);
             }
         }
         
-        // Check Termux RUN_COMMAND permission after other permissions
+        // Check for Files permission (MANAGE_EXTERNAL_STORAGE)
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                // Show dialog then open settings for Files permission
+                new AlertDialog.Builder(this)
+                    .setTitle("Files Access Required")
+                    .setMessage("Ops needs 'All files access' permission to save backup results and error logs.\n\nYou'll see it as 'Files and media' in the next screen.")
+                    .setPositiveButton("Grant", (dialog, which) -> {
+                        try {
+                            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                            intent.setData(Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                            startActivity(intent);
+                        }
+                    })
+                    .setNegativeButton("Skip", null)
+                    .show();
+            }
+        }, 800);
+        
+        // Check Termux RUN_COMMAND permission
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED) {
                 showTermuxPermissionDialog();
             }
-        }, 1500);
+        }, 2500);
     }
 
     private void showTermuxPermissionDialog() {
@@ -448,9 +466,24 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         if (attemptCount > 30) {
             // Timeout after 15 seconds
             showProgress(false);
-            updateBackupStatus("Timeout - check Termux for errors");
-            Toast.makeText(this, "Backup timeout - check Termux logs", Toast.LENGTH_LONG).show();
-            logBackupEvent("Timeout", "Execution took too long");
+            updateBackupStatus("Timeout - script is still running");
+            
+            // Show detailed timeout dialog
+            new AlertDialog.Builder(this)
+                .setTitle("Backup Timeout")
+                .setMessage("Script is taking too long (>15s).\n\nPossible issues:\n• Git push waiting for authentication\n• Network is slow\n• Script is stuck\n\nCheck Termux terminal for details.\nError log: /sdcard/ops-error-log.json")
+                .setPositiveButton("View Logs", (dialog, which) -> {
+                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    android.content.ClipData clip = android.content.ClipData.newPlainText("View Logs", "cat /sdcard/ops-error-log.json");
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(clip);
+                        Toast.makeText(TermuxTaskerMainActivity.this, "Command copied! Paste in Termux", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Close", null)
+                .show();
+            
+            logBackupEvent("Timeout", "Script execution exceeded 15 seconds - likely stuck on git push or network issue");
             return;
         }
         
@@ -474,8 +507,24 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                         } else if (result.startsWith("FAILED")) {
                             showProgress(false);
                             String errorMsg = result.contains(":") ? result.substring(result.indexOf(":") + 1) : "Unknown error";
-                            updateBackupStatus("Backup failed");
-                            Toast.makeText(this, "Backup failed: " + errorMsg, Toast.LENGTH_LONG).show();
+                            updateBackupStatus("Backup failed: " + errorMsg);
+                            
+                            // Show detailed error dialog
+                            new AlertDialog.Builder(this)
+                                .setTitle("Backup Failed")
+                                .setMessage("Error: " + errorMsg + "\n\nError log: /sdcard/ops-error-log.json")
+                                .setPositiveButton("View Logs", (dialog, which) -> {
+                                    // Copy log path to clipboard
+                                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                                    android.content.ClipData clip = android.content.ClipData.newPlainText("Error Log Path", "cat /sdcard/ops-error-log.json");
+                                    if (clipboard != null) {
+                                        clipboard.setPrimaryClip(clip);
+                                        Toast.makeText(TermuxTaskerMainActivity.this, "Command copied! Open Termux and paste", Toast.LENGTH_LONG).show();
+                                    }
+                                })
+                                .setNegativeButton("Close", null)
+                                .show();
+                            
                             logBackupEvent("Failed", errorMsg);
                             resultFile.delete();
                         } else {
@@ -498,15 +547,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private boolean isNetworkAvailable() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (cm != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                android.net.Network network = cm.getActiveNetwork();
-                if (network == null) return false;
-                NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
-                return capabilities != null && 
-                       (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || 
-                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
-            }
+            android.net.Network network = cm.getActiveNetwork();
+            if (network == null) return false;
+            NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
+            return capabilities != null && 
+                   (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || 
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
         }
         return false;
     }
@@ -575,11 +622,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(this, intent);
-            } else {
-                startService(intent);
-            }
+            // Android 12+ always uses foreground service
+            ContextCompat.startForegroundService(this, intent);
             return null;
         } catch (Exception e) {
             String message = "Failed to run command: " + e.getMessage();
@@ -591,6 +635,26 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private void updateBackupStatus(String message) {
         if (backupStatusTextView == null) return;
         backupStatusTextView.setText(message);
+        
+        // Update stats card status
+        if (statStatus != null && statStatusIndicator != null) {
+            if (message.isEmpty() || message.contains("Ready")) {
+                statStatus.setText("Ready");
+                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_idle);
+            } else if (message.contains("success") || message.contains("Success")) {
+                statStatus.setText("Success");
+                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_active);
+            } else if (message.contains("fail") || message.contains("error") || message.contains("Error")) {
+                statStatus.setText("Failed");
+                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_error);
+            } else if (message.contains("Running") || message.contains("Pushing")) {
+                statStatus.setText("Running");
+                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_active);
+            } else {
+                statStatus.setText("Ready");
+                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_idle);
+            }
+        }
     }
 
     private void showProgress(boolean show) {
@@ -679,11 +743,16 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             
             if (isChecked) {
                 scheduleBackupWork();
+                // Show persistent background notification
+                BackupWorker.showBackgroundStatusNotification(this);
                 Toast.makeText(this, "✓ Auto backup enabled", Toast.LENGTH_SHORT).show();
             } else {
                 cancelBackupWork();
+                // Hide persistent background notification
+                BackupWorker.hideBackgroundStatusNotification(this);
                 Toast.makeText(this, "Auto backup disabled", Toast.LENGTH_SHORT).show();
             }
+            updateStatsCard();
         });
 
         intervalSpinner.setOnItemClickListener((parent, view, position, id) -> {
@@ -835,11 +904,9 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private boolean isConnectedToWifi() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (cm != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                NetworkCapabilities capabilities = cm.getNetworkCapabilities(cm.getActiveNetwork());
-                return capabilities != null && 
-                       capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
-            }
+            NetworkCapabilities capabilities = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return capabilities != null && 
+                   capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
         }
         return false;
     }
@@ -921,6 +988,48 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             String timeStr = sdf.format(new Date(lastBackup));
             lastBackupTextView.setText(getString(R.string.last_backup, timeStr));
         }
+        updateStatsCard();
+    }
+    
+    private void updateStatsCard() {
+        // Update last backup stat
+        long lastBackup = prefs.getLong("last_backup_time", 0);
+        if (statLastBackup != null) {
+            if (lastBackup == 0) {
+                statLastBackup.setText("Never");
+            } else {
+                statLastBackup.setText(getRelativeTimeString(lastBackup));
+            }
+        }
+        
+        // Update auto status
+        if (statAutoStatus != null) {
+            boolean enabled = prefs.getBoolean("schedule_enabled", false);
+            statAutoStatus.setText(enabled ? "Active" : "Off");
+        }
+    }
+    
+    private String getRelativeTimeString(long timestamp) {
+        long now = System.currentTimeMillis();
+        long diff = now - timestamp;
+        
+        long seconds = diff / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+        
+        if (seconds < 60) {
+            return "Just now";
+        } else if (minutes < 60) {
+            return minutes + "m ago";
+        } else if (hours < 24) {
+            return hours + "h ago";
+        } else if (days < 7) {
+            return days + "d ago";
+        } else {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd", Locale.getDefault());
+            return sdf.format(new Date(timestamp));
+        }
     }
 
     public void saveLastBackupTime() {
@@ -957,8 +1066,98 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             historyArray.put(event);
             
             prefs.edit().putString("backup_history", historyArray.toString()).apply();
+            
+            // Log errors to file
+            if (status.equals("Failed") || status.equals("Timeout")) {
+                logErrorToFile(status, message);
+            }
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to log backup event: " + e.getMessage());
         }
+    }
+    
+    private void logErrorToFile(String status, String message) {
+        try {
+            java.io.File logFile = new java.io.File(ERROR_LOG_FILE);
+            
+            // Check file size and cleanup if needed
+            if (logFile.exists() && logFile.length() > MAX_LOG_SIZE) {
+                cleanupErrorLog(logFile);
+            }
+            
+            // Read existing logs
+            org.json.JSONArray logArray;
+            if (logFile.exists()) {
+                String content = readFile(logFile);
+                logArray = new org.json.JSONArray(content);
+            } else {
+                logArray = new org.json.JSONArray();
+            }
+            
+            // Create error entry
+            org.json.JSONObject errorEntry = new org.json.JSONObject();
+            errorEntry.put("timestamp", System.currentTimeMillis());
+            errorEntry.put("datetime", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(new java.util.Date()));
+            errorEntry.put("status", status);
+            errorEntry.put("error", message);
+            
+            // Get enabled scripts
+            List<String> enabledScripts = getEnabledScripts();
+            errorEntry.put("scripts", new org.json.JSONArray(enabledScripts));
+            
+            // Add system info
+            org.json.JSONObject systemInfo = new org.json.JSONObject();
+            systemInfo.put("wifi", isConnectedToWifi());
+            systemInfo.put("network", isNetworkAvailable());
+            systemInfo.put("charging", isDeviceCharging());
+            errorEntry.put("system", systemInfo);
+            
+            logArray.put(errorEntry);
+            
+            // Write to file
+            writeFile(logFile, logArray.toString(2));
+            
+            Logger.logInfo(LOG_TAG, "Error logged to: " + ERROR_LOG_FILE);
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Failed to write error log: " + e.getMessage());
+        }
+    }
+    
+    private void cleanupErrorLog(java.io.File logFile) {
+        try {
+            String content = readFile(logFile);
+            org.json.JSONArray logArray = new org.json.JSONArray(content);
+            
+            // Keep only last 20 entries
+            org.json.JSONArray newArray = new org.json.JSONArray();
+            int start = Math.max(0, logArray.length() - 20);
+            for (int i = start; i < logArray.length(); i++) {
+                newArray.put(logArray.get(i));
+            }
+            
+            writeFile(logFile, newArray.toString(2));
+            Logger.logInfo(LOG_TAG, "Error log cleaned up. Kept last 20 entries.");
+        } catch (Exception e) {
+            // If cleanup fails, delete the file
+            logFile.delete();
+            Logger.logError(LOG_TAG, "Error log cleanup failed, file deleted: " + e.getMessage());
+        }
+    }
+    
+    private String readFile(java.io.File file) throws java.io.IOException {
+        java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file));
+        StringBuilder content = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            content.append(line);
+        }
+        reader.close();
+        return content.toString();
+    }
+    
+    private void writeFile(java.io.File file, String content) throws java.io.IOException {
+        java.io.FileWriter writer = new java.io.FileWriter(file);
+        writer.write(content);
+        writer.close();
     }
 }

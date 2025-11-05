@@ -44,13 +44,11 @@ public class SchedulesActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Enable dynamic colors on Android 12+ (Material You)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            try {
-                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
-            } catch (Exception e) {
-                Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
-            }
+        // Enable dynamic colors - Android 12+/API 31+ is our minSdk
+        try {
+            getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
         }
         
         setContentView(R.layout.activity_schedules);

@@ -23,6 +23,8 @@ public class BackupWorker extends Worker {
     private static final String LOG_TAG = "BackupWorker";
     private static final String CHANNEL_ID = "backup_notifications";
     private static final int NOTIFICATION_ID = 1001;
+    private static final String STATUS_CHANNEL_ID = "backup_status";
+    private static final int STATUS_NOTIFICATION_ID = 1000;
 
     public BackupWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -58,11 +60,8 @@ public class BackupWorker extends Worker {
         intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(context, intent);
-            } else {
-                context.startService(intent);
-            }
+            // Android 12+ always uses foreground service
+            ContextCompat.startForegroundService(context, intent);
             Logger.logInfo(LOG_TAG, "Backup command sent to Termux successfully");
             
             // Save last backup time
@@ -131,18 +130,73 @@ public class BackupWorker extends Worker {
     }
 
     private void createNotificationChannel(Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = "Backup Notifications";
-            String description = "Notifications for scheduled backups";
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
-            channel.setDescription(description);
+        NotificationManager notificationManager = 
+                context.getSystemService(NotificationManager.class);
+        if (notificationManager != null) {
+            // Backup completion notifications
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID, 
+                    "Backup Notifications", 
+                    NotificationManager.IMPORTANCE_DEFAULT);
+            channel.setDescription("Notifications for scheduled backups");
+            notificationManager.createNotificationChannel(channel);
             
-            NotificationManager notificationManager = 
-                    context.getSystemService(NotificationManager.class);
-            if (notificationManager != null) {
-                notificationManager.createNotificationChannel(channel);
-            }
+            // Silent status notifications
+            NotificationChannel statusChannel = new NotificationChannel(
+                    STATUS_CHANNEL_ID,
+                    "Background Status",
+                    NotificationManager.IMPORTANCE_LOW);
+            statusChannel.setDescription("Shows when automatic backups are active");
+            statusChannel.setShowBadge(false);
+            statusChannel.setSound(null, null);
+            notificationManager.createNotificationChannel(statusChannel);
+        }
+    }
+    
+    public static void showBackgroundStatusNotification(Context context) {
+        createStatusChannel(context);
+        
+        Intent intent = new Intent(context, com.termux.tasker.activities.TermuxTaskerMainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                context, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, STATUS_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_schedule)
+                .setContentTitle("Ops - Automatic Backups Active")
+                .setContentText("Monitoring for scheduled backups")
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .setSilent(true)
+                .setContentIntent(pendingIntent);
+        
+        NotificationManager notificationManager = 
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager != null) {
+            notificationManager.notify(STATUS_NOTIFICATION_ID, builder.build());
+        }
+    }
+    
+    public static void hideBackgroundStatusNotification(Context context) {
+        NotificationManager notificationManager = 
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager != null) {
+            notificationManager.cancel(STATUS_NOTIFICATION_ID);
+        }
+    }
+    
+    private static void createStatusChannel(Context context) {
+        NotificationManager notificationManager = 
+                context.getSystemService(NotificationManager.class);
+        if (notificationManager != null) {
+            NotificationChannel statusChannel = new NotificationChannel(
+                    STATUS_CHANNEL_ID,
+                    "Background Status",
+                    NotificationManager.IMPORTANCE_LOW);
+            statusChannel.setDescription("Shows when automatic backups are active");
+            statusChannel.setShowBadge(false);
+            statusChannel.setSound(null, null);
+            notificationManager.createNotificationChannel(statusChannel);
         }
     }
 }
