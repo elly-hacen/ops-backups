@@ -61,7 +61,7 @@ public class BackupWorker extends Worker {
 
         try {
             // Android 12+ always uses foreground service
-            ContextCompat.startForegroundService(context, intent);
+                ContextCompat.startForegroundService(context, intent);
             Logger.logInfo(LOG_TAG, "Backup command sent to Termux successfully");
             
             // Save last backup time
@@ -186,9 +186,9 @@ public class BackupWorker extends Worker {
     }
     
     private static void createStatusChannel(Context context) {
-        NotificationManager notificationManager = 
-                context.getSystemService(NotificationManager.class);
-        if (notificationManager != null) {
+            NotificationManager notificationManager = 
+                    context.getSystemService(NotificationManager.class);
+            if (notificationManager != null) {
             NotificationChannel statusChannel = new NotificationChannel(
                     STATUS_CHANNEL_ID,
                     "Background Status",

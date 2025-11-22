@@ -28,10 +28,10 @@ public class SetupWizardActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         // Enable dynamic colors - Android 12+/API 31+ is our minSdk
-        try {
-            getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
-        } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Dynamic colors not available");
+            try {
+                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Dynamic colors not available");
         }
         
         setContentView(R.layout.activity_setup_wizard);
@@ -61,7 +61,7 @@ public class SetupWizardActivity extends AppCompatActivity {
 
         grantPermissionButton.setOnClickListener(v -> {
             // Request Termux RUN_COMMAND permission
-            requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"}, 100);
+                requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"}, 100);
         });
 
         openUsageGuideButton.setOnClickListener(v -> {

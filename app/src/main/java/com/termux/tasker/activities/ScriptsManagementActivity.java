@@ -46,10 +46,10 @@ public class ScriptsManagementActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         // Enable dynamic colors - Android 12+/API 31+ is our minSdk
-        try {
-            getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
-        } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
+            try {
+                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
         }
         
         setContentView(R.layout.activity_scripts);

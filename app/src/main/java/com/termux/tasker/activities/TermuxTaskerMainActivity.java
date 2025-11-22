@@ -92,10 +92,10 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         // Enable dynamic colors (Material You) - Android 12+/API 31+ is our minSdk
-        try {
-            getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
-        } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
+            try {
+                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
         }
         
         setContentView(R.layout.activity_termux_tasker_main);
@@ -282,31 +282,16 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
     private void requestPermissionsIfNeeded() {
         // Notification permission (Android 13+) - shows as popup
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 100);
+                }
             }
-        }
-        
+            
         // Check for Files permission (MANAGE_EXTERNAL_STORAGE)
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             if (!android.os.Environment.isExternalStorageManager()) {
-                // Show dialog then open settings for Files permission
-                new AlertDialog.Builder(this)
-                    .setTitle("Files Access Required")
-                    .setMessage("Ops needs 'All files access' permission to save backup results and error logs.\n\nYou'll see it as 'Files and media' in the next screen.")
-                    .setPositiveButton("Grant", (dialog, which) -> {
-                        try {
-                            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                            intent.setData(Uri.parse("package:" + getPackageName()));
-                            startActivity(intent);
-                        } catch (Exception e) {
-                            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
-                            startActivity(intent);
-                        }
-                    })
-                    .setNegativeButton("Skip", null)
-                    .show();
+                showFilesPermissionDialog();
             }
         }, 800);
         
@@ -318,17 +303,59 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }, 2500);
     }
 
+    private void showFilesPermissionDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_permission_files, null);
+        
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(false)
+                .create();
+        
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setDimAmount(0.6f);
+        }
+        
+        dialogView.findViewById(R.id.button_skip_files).setOnClickListener(v -> dialog.dismiss());
+        
+        dialogView.findViewById(R.id.button_grant_files).setOnClickListener(v -> {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (Exception e) {
+                Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                startActivity(intent);
+            }
+            dialog.dismiss();
+        });
+        
+        dialog.show();
+    }
+
     private void showTermuxPermissionDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle("Termux Permission Required")
-                .setMessage("OPS needs permission to run commands in Termux.\n\n1. Tap 'Open Settings'\n2. Scroll to Permissions\n3. Enable 'Run commands in Termux'")
-                .setPositiveButton("Open Settings", (dialog, which) -> {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_permission_termux, null);
+        
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create();
+        
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setDimAmount(0.6f);
+        }
+        
+        dialogView.findViewById(R.id.button_cancel_termux).setOnClickListener(v -> dialog.dismiss());
+        
+        dialogView.findViewById(R.id.button_open_settings_termux).setOnClickListener(v -> {
                     Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                     intent.setData(Uri.parse("package:" + getPackageName()));
                     startActivity(intent);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+            dialog.dismiss();
+        });
+        
+        dialog.show();
     }
 
     @Override
@@ -547,13 +574,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private boolean isNetworkAvailable() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (cm != null) {
-            android.net.Network network = cm.getActiveNetwork();
-            if (network == null) return false;
-            NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
-            return capabilities != null && 
-                   (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || 
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+                android.net.Network network = cm.getActiveNetwork();
+                if (network == null) return false;
+                NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
+                return capabilities != null && 
+                       (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || 
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
         }
         return false;
     }
@@ -623,7 +650,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
         try {
             // Android 12+ always uses foreground service
-            ContextCompat.startForegroundService(this, intent);
+                ContextCompat.startForegroundService(this, intent);
             return null;
         } catch (Exception e) {
             String message = "Failed to run command: " + e.getMessage();
@@ -904,9 +931,9 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private boolean isConnectedToWifi() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         if (cm != null) {
-            NetworkCapabilities capabilities = cm.getNetworkCapabilities(cm.getActiveNetwork());
-            return capabilities != null && 
-                   capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+                NetworkCapabilities capabilities = cm.getNetworkCapabilities(cm.getActiveNetwork());
+                return capabilities != null && 
+                       capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
         }
         return false;
     }
