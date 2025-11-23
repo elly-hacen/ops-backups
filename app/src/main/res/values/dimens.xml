@@ -7,4 +7,20 @@
     <dimen name="activity_view_padding">16dp</dimen>
     <dimen name="activity_view_padding_mini">8dp</dimen>
 
+    <!-- Consistent Design Tokens - Spacing -->
+    <dimen name="spacing_section">20dp</dimen>
+    <dimen name="spacing_card_padding">16dp</dimen>
+    <dimen name="spacing_element">12dp</dimen>
+    <dimen name="spacing_small">8dp</dimen>
+    <dimen name="spacing_tiny">4dp</dimen>
+    
+    <!-- Consistent Design Tokens - Corner Radius -->
+    <dimen name="radius_card">16dp</dimen>
+    <dimen name="radius_button">12dp</dimen>
+    <dimen name="radius_dialog">28dp</dimen>
+    <dimen name="radius_chip">8dp</dimen>
+    
+    <!-- Status Indicator -->
+    <dimen name="status_indicator_size">12dp</dimen>
+
 </resources>

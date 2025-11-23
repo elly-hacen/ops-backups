@@ -2,6 +2,8 @@ package com.termux.tasker.activities;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -13,13 +15,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.snackbar.Snackbar;
-
-import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.logger.Logger;
-import com.termux.shared.termux.theme.TermuxThemeUtils;
-import com.termux.shared.theme.NightMode;
 import com.termux.tasker.R;
-import com.termux.tasker.TermuxTaskerApplication;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -29,32 +26,37 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SchedulesActivity extends AppCompatActivity {
 
     private static final String LOG_TAG = "SchedulesActivity";
+    private static final int MAX_HISTORY_TO_DISPLAY = 50;
+    private static final int MAX_HISTORY_TO_STORE = 200;
+
     private RecyclerView recyclerView;
     private TextView emptyStateView;
     private TextView totalBackupsView;
     private TextView successCountView;
     private TextView failedCountView;
+    private View loadingIndicator;
     private SharedPreferences prefs;
+    private final ExecutorService historyExecutor = Executors.newSingleThreadExecutor();
+    private final List<BackupHistoryItem> historyItems = new ArrayList<>();
+    private ScheduleAdapter adapter;
+    private Handler mainHandler;
+    private volatile Future<?> currentHistoryTask;
+    private final AtomicInteger loadGeneration = new AtomicInteger(0);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // Enable dynamic colors - Android 12+/API 31+ is our minSdk
-            try {
-                getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
-            } catch (Exception e) {
-                Logger.logError(LOG_TAG, "Dynamic colors not available: " + e.getMessage());
-        }
-        
         setContentView(R.layout.activity_schedules);
-
-        TermuxThemeUtils.setAppNightMode(this);
-        AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);
+        mainHandler = new Handler(Looper.getMainLooper());
+        loadingIndicator = findViewById(R.id.progress_history);
 
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
@@ -75,6 +77,8 @@ public class SchedulesActivity extends AppCompatActivity {
         prefs = getSharedPreferences("BackupSettings", MODE_PRIVATE);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new ScheduleAdapter(historyItems);
+        recyclerView.setAdapter(adapter);
         
         findViewById(R.id.button_clear_all).setOnClickListener(v -> confirmClearAll());
         
@@ -96,9 +100,14 @@ public class SchedulesActivity extends AppCompatActivity {
                     .setTitle(R.string.confirm_clear_all)
                     .setMessage(getString(R.string.confirm_clear_all_message, count))
                     .setPositiveButton(R.string.action_clear_all, (dialog, which) -> {
-                        prefs.edit().putString("backup_history", "[]").apply();
-                        loadScheduleHistory();
-                        Toast.makeText(this, R.string.all_schedules_cleared, Toast.LENGTH_SHORT).show();
+                        showLoading(true);
+                        historyExecutor.execute(() -> {
+                            prefs.edit().putString("backup_history", "[]").apply();
+                            mainHandler.post(() -> {
+                                Toast.makeText(this, R.string.all_schedules_cleared, Toast.LENGTH_SHORT).show();
+                                loadScheduleHistory();
+                            });
+                        });
                     })
                     .setNegativeButton(R.string.cancel, null)
                     .show();
@@ -110,133 +119,206 @@ public class SchedulesActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        TermuxTaskerApplication.setLogConfig(this, false);
-        Logger.logVerbose(LOG_TAG, "onResume");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        cancelPendingLoad();
+        historyExecutor.shutdownNow();
     }
 
     private void loadScheduleHistory() {
-        String historyJson = prefs.getString("backup_history", "[]");
-        
-        // Show loading state
-        if (totalBackupsView != null) totalBackupsView.setText("...");
-        if (successCountView != null) successCountView.setText("...");
-        if (failedCountView != null) failedCountView.setText("...");
-        
-        try {
-            JSONArray historyArray = new JSONArray(historyJson);
-            
-            // Calculate stats
-            int totalBackups = historyArray.length();
-            int successCount = 0;
-            int failedCount = 0;
-            
-            for (int i = 0; i < historyArray.length(); i++) {
-                JSONObject item = historyArray.getJSONObject(i);
-                String status = item.optString("status", "");
-                if (status.equals("Completed")) {
-                    successCount++;
-                } else if (!status.equals("Scheduled") && !status.equals("Queued")) {
-                    failedCount++;
-                }
+        showLoading(true);
+        cancelPendingLoad();
+        final int requestId = loadGeneration.incrementAndGet();
+
+        currentHistoryTask = historyExecutor.submit(() -> {
+            try {
+                String historyJson = prefs.getString("backup_history", "[]");
+                JSONArray historyArray = new JSONArray(historyJson);
+                JSONArray normalizedArray = normalizeHistoryArray(historyArray);
+                int[] stats = calculateStats(normalizedArray);
+                List<BackupHistoryItem> items = buildHistoryItems(normalizedArray);
+
+                mainHandler.post(() -> {
+                    if (requestId != loadGeneration.get() || isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    currentHistoryTask = null;
+                    updateHistoryUi(stats[0], stats[1], stats[2], items);
+                });
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Failed to load history: " + e.getMessage());
+                mainHandler.post(() -> {
+                    if (requestId != loadGeneration.get() || isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    currentHistoryTask = null;
+                    showLoading(false);
+                    showEmptyState();
+                    if (totalBackupsView != null) totalBackupsView.setText("0");
+                    if (successCountView != null) successCountView.setText("0");
+                    if (failedCountView != null) failedCountView.setText("0");
+                });
             }
-            
-            // Update stats views with animation
-            final int finalTotal = totalBackups;
-            final int finalSuccess = successCount;
-            final int finalFailed = failedCount;
-            
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                if (totalBackupsView != null) {
-                    totalBackupsView.setText(String.valueOf(finalTotal));
-                }
-                if (successCountView != null) {
-                    successCountView.setText(String.valueOf(finalSuccess));
-                }
-                if (failedCountView != null) {
-                    failedCountView.setText(String.valueOf(finalFailed));
-                }
-            }, 250);
-            
-            if (historyArray.length() == 0) {
-                emptyStateView.setVisibility(View.VISIBLE);
-                recyclerView.setVisibility(View.GONE);
-            } else {
-                emptyStateView.setVisibility(View.GONE);
-                recyclerView.setVisibility(View.VISIBLE);
-                
-                List<BackupHistoryItem> items = new ArrayList<>();
-                for (int i = historyArray.length() - 1; i >= 0; i--) {
-                    JSONObject item = historyArray.getJSONObject(i);
-                    items.add(new BackupHistoryItem(
-                        i,
-                        item.getLong("timestamp"),
-                        item.getString("status"),
-                        item.optString("message", ""),
-                        item.optString("category", "Manual")
-                    ));
-                }
-                
-                recyclerView.setAdapter(new ScheduleAdapter(items));
-            }
-        } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Failed to load history: " + e.getMessage());
-            emptyStateView.setVisibility(View.VISIBLE);
-            recyclerView.setVisibility(View.GONE);
-        }
+        });
     }
 
     private void deleteSchedule(int position) {
-        try {
-            String historyJson = prefs.getString("backup_history", "[]");
-            JSONArray historyArray = new JSONArray(historyJson);
-            
-            int actualIndex = historyArray.length() - 1 - position;
-            if (actualIndex >= 0 && actualIndex < historyArray.length()) {
-                // Save deleted item for undo
+        showLoading(true);
+        historyExecutor.execute(() -> {
+            try {
+                String historyJson = prefs.getString("backup_history", "[]");
+                JSONArray historyArray = new JSONArray(historyJson);
+
+                int actualIndex = historyArray.length() - 1 - position;
+                if (actualIndex < 0 || actualIndex >= historyArray.length()) {
+                    mainHandler.post(() -> showLoading(false));
+                    return;
+                }
+
                 JSONObject deletedItem = historyArray.getJSONObject(actualIndex);
                 final String deletedItemJson = deletedItem.toString();
                 final int deletedPosition = actualIndex;
-                
-                // Remove item
+
                 historyArray.remove(actualIndex);
-                final String newHistoryJson = historyArray.toString();
-                prefs.edit().putString("backup_history", newHistoryJson).apply();
-                loadScheduleHistory();
-                
-                // Show snackbar with undo
-                View rootView = findViewById(android.R.id.content);
-                if (rootView != null) {
-                    Snackbar.make(rootView, R.string.schedule_deleted, Snackbar.LENGTH_LONG)
-                            .setAction("Undo", v -> {
-                                try {
-                                    String currentJson = prefs.getString("backup_history", "[]");
-                                    JSONArray currentArray = new JSONArray(currentJson);
-                                    JSONObject restoredItem = new JSONObject(deletedItemJson);
-                                    
-                                    // Insert at original position
-                                    JSONArray newArray = new JSONArray();
-                                    for (int i = 0; i < currentArray.length(); i++) {
-                                        if (i == deletedPosition) {
-                                            newArray.put(restoredItem);
-                                        }
-                                        newArray.put(currentArray.get(i));
-                                    }
-                                    if (deletedPosition >= currentArray.length()) {
-                                        newArray.put(restoredItem);
-                                    }
-                                    
-                                    prefs.edit().putString("backup_history", newArray.toString()).apply();
-                                    loadScheduleHistory();
-                                } catch (Exception ex) {
-                                    Logger.logError(LOG_TAG, "Failed to undo: " + ex.getMessage());
-                                }
-                            })
-                            .show();
-                }
+                prefs.edit().putString("backup_history", historyArray.toString()).apply();
+
+                mainHandler.post(() -> {
+                    loadScheduleHistory();
+                    showUndoSnackbar(deletedItemJson, deletedPosition);
+                });
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Failed to delete schedule: " + e.getMessage());
+                mainHandler.post(() -> showLoading(false));
             }
-        } catch (Exception e) {
-            Logger.logError(LOG_TAG, "Failed to delete schedule: " + e.getMessage());
+        });
+    }
+
+    private void cancelPendingLoad() {
+        if (currentHistoryTask != null && !currentHistoryTask.isDone()) {
+            currentHistoryTask.cancel(true);
         }
+        currentHistoryTask = null;
+    }
+
+    private JSONArray normalizeHistoryArray(JSONArray historyArray) throws Exception {
+        if (historyArray.length() <= MAX_HISTORY_TO_STORE) {
+            return historyArray;
+        }
+        JSONArray trimmedArray = new JSONArray();
+        int start = Math.max(0, historyArray.length() - MAX_HISTORY_TO_STORE);
+        for (int i = start; i < historyArray.length(); i++) {
+            trimmedArray.put(historyArray.get(i));
+        }
+        prefs.edit().putString("backup_history", trimmedArray.toString()).apply();
+        return trimmedArray;
+    }
+
+    private int[] calculateStats(JSONArray historyArray) throws Exception {
+        int total = historyArray.length();
+        int success = 0;
+        int failed = 0;
+        for (int i = 0; i < historyArray.length(); i++) {
+            JSONObject item = historyArray.getJSONObject(i);
+            String status = item.optString("status", "");
+            if ("Completed".equals(status)) {
+                success++;
+            } else if (!"Scheduled".equals(status) && !"Queued".equals(status)) {
+                failed++;
+            }
+        }
+        return new int[]{total, success, failed};
+    }
+
+    private List<BackupHistoryItem> buildHistoryItems(JSONArray historyArray) throws Exception {
+        List<BackupHistoryItem> items = new ArrayList<>();
+        if (historyArray.length() == 0) {
+            return items;
+        }
+        int limit = Math.min(MAX_HISTORY_TO_DISPLAY, historyArray.length());
+        for (int i = historyArray.length() - 1; i >= historyArray.length() - limit; i--) {
+            JSONObject item = historyArray.getJSONObject(i);
+            items.add(new BackupHistoryItem(
+                    i,
+                    item.optLong("timestamp", 0L),
+                    item.optString("status", ""),
+                    item.optString("message", ""),
+                    item.optString("category", "Manual")
+            ));
+        }
+        return items;
+    }
+
+    private void updateHistoryUi(int total, int success, int failed, List<BackupHistoryItem> items) {
+        if (totalBackupsView != null) totalBackupsView.setText(String.valueOf(total));
+        if (successCountView != null) successCountView.setText(String.valueOf(success));
+        if (failedCountView != null) failedCountView.setText(String.valueOf(failed));
+        showLoading(false);
+
+        if (items.isEmpty()) {
+            showEmptyState();
+        } else {
+            emptyStateView.setVisibility(View.GONE);
+            recyclerView.setVisibility(View.VISIBLE);
+            historyItems.clear();
+            historyItems.addAll(items);
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    private void showEmptyState() {
+        emptyStateView.setVisibility(View.VISIBLE);
+        recyclerView.setVisibility(View.GONE);
+        historyItems.clear();
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    private void showLoading(boolean show) {
+        if (loadingIndicator != null) {
+            loadingIndicator.setVisibility(show ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private void showUndoSnackbar(String deletedItemJson, int deletedPosition) {
+        View rootView = findViewById(android.R.id.content);
+        if (rootView == null) return;
+        Snackbar.make(rootView, R.string.schedule_deleted, Snackbar.LENGTH_LONG)
+                .setAction(R.string.action_undo, v -> restoreSchedule(deletedItemJson, deletedPosition))
+                .show();
+    }
+
+    private void restoreSchedule(String deletedItemJson, int deletedPosition) {
+        showLoading(true);
+        historyExecutor.execute(() -> {
+            try {
+                String currentJson = prefs.getString("backup_history", "[]");
+                JSONArray currentArray = new JSONArray(currentJson);
+                JSONObject restoredItem = new JSONObject(deletedItemJson);
+
+                JSONArray newArray = new JSONArray();
+                boolean inserted = false;
+                for (int i = 0; i < currentArray.length(); i++) {
+                    if (i == deletedPosition) {
+                        newArray.put(restoredItem);
+                        inserted = true;
+                    }
+                    newArray.put(currentArray.get(i));
+                }
+                if (!inserted) {
+                    newArray.put(restoredItem);
+                }
+
+                prefs.edit().putString("backup_history", newArray.toString()).apply();
+                mainHandler.post(this::loadScheduleHistory);
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Failed to undo: " + e.getMessage());
+                mainHandler.post(() -> showLoading(false));
+            }
+        });
     }
 
     private static class BackupHistoryItem {
@@ -256,7 +338,8 @@ public class SchedulesActivity extends AppCompatActivity {
     }
 
     private class ScheduleAdapter extends RecyclerView.Adapter<ScheduleViewHolder> {
-        private List<BackupHistoryItem> items;
+        private final List<BackupHistoryItem> items;
+        private final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
 
         ScheduleAdapter(List<BackupHistoryItem> items) {
             this.items = items;
@@ -271,13 +354,15 @@ public class SchedulesActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(ScheduleViewHolder holder, int position) {
             BackupHistoryItem item = items.get(position);
-            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
-            holder.timeView.setText(sdf.format(new Date(item.timestamp)));
-            holder.categoryView.setText(item.category.toUpperCase());
+            holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
+            holder.categoryView.setText(item.category.toUpperCase(Locale.getDefault()));
             holder.statusView.setText(item.status + (item.message.isEmpty() ? "" : " - " + item.message));
             
             holder.deleteButton.setOnClickListener(v -> {
-                deleteSchedule(position);
+                int adapterPosition = holder.getAdapterPosition();
+                if (adapterPosition != RecyclerView.NO_POSITION) {
+                    deleteSchedule(adapterPosition);
+                }
             });
         }
 

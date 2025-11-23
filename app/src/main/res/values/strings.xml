@@ -17,6 +17,8 @@
     <string name="no_backup_history">No backup history yet</string>
     <string name="action_delete">Delete</string>
     <string name="action_clear_all">Clear All</string>
+    <string name="action_undo">Undo</string>
+    <string name="schedules_loading">Loading backup history</string>
     <string name="backup_script_example">#!/data/data/com.termux/files/usr/bin/env bash\n\nREPO_PATH=~/storage/shared/backups\nLOG_FILE=~/storage/shared/backups/backup.log\n\nlog() {\n    echo \"[$(date \'+%Y-%m-%d %H:%M:%S\')] $1\" | tee -a \"$LOG_FILE\"\n}\n\nlog \"=== Backup started ===\"\n\ncd \"$REPO_PATH\" || {\n    log \"ERROR: Failed to change to directory\"\n    exit 1\n}\n\nif ! git rev-parse --git-dir > /dev/null 2>&amp;1; then\n    log \"ERROR: Not a git repository\"\n    exit 1\nfi\n\ngit add . 2>&amp;1 | tee -a \"$LOG_FILE\"\n\nif git diff --staged --quiet; then\n    log \"No changes to backup\"\n    exit 0\nfi\n\nif git commit -m \"Backup $(date \'+%Y-%m-%d %H:%M:%S\')\" 2>&amp;1 | tee -a \"$LOG_FILE\"; then\n    log \"Commit successful\"\nelse\n    log \"ERROR: Commit failed\"\n    exit 1\nfi\n\nif git push 2>&amp;1 | tee -a \"$LOG_FILE\"; then\n    log \"Backup pushed successfully\"\n    log \"=== Backup completed ===\"\nelse\n    log \"ERROR: Push failed\"\n    exit 1\nfi</string>
     <string name="schedule_deleted">Schedule deleted</string>
     <string name="all_schedules_cleared">All history cleared</string>
@@ -107,5 +109,13 @@
     <!-- Errors -->
     <string name="error_termux_not_installed">Termux app is not installed</string>
     <string name="error_termux_app_disabled">Termux app is disabled. Enable it in settings.</string>
+
+    <!-- Accessibility -->
+    <string name="backup_status_ready">Backup status: Ready</string>
+    <string name="backup_status_running">Backup status: Running</string>
+    <string name="backup_status_success">Backup status: Success</string>
+    <string name="backup_status_failed">Backup status: Failed</string>
+    <string name="menu_description">Open menu</string>
+    <string name="menu_tooltip">Settings and options</string>
 
 </resources>

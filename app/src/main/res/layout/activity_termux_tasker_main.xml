@@ -47,8 +47,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/drawer_subtitle"
                     android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:alpha="0.7" />
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
 
@@ -83,8 +82,7 @@
                             android:layout_height="wrap_content"
                             android:text="Last Backup"
                             android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:alpha="0.7" />
+                            android:textColor="?attr/colorOnSurfaceVariant" />
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/stat_last_backup"
@@ -120,8 +118,7 @@
                             android:layout_height="wrap_content"
                             android:text="Status"
                             android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:alpha="0.7" />
+                            android:textColor="?attr/colorOnSurfaceVariant" />
 
                         <LinearLayout
                             android:layout_width="wrap_content"
@@ -132,10 +129,11 @@
 
                             <View
                                 android:id="@+id/stat_status_indicator"
-                                android:layout_width="8dp"
-                                android:layout_height="8dp"
+                                android:layout_width="@dimen/status_indicator_size"
+                                android:layout_height="@dimen/status_indicator_size"
                                 android:layout_marginEnd="6dp"
-                                android:background="@drawable/status_indicator_idle" />
+                                android:background="@drawable/status_indicator_idle"
+                                android:contentDescription="@string/backup_status_ready" />
 
                             <com.google.android.material.textview.MaterialTextView
                                 android:id="@+id/stat_status"
@@ -172,8 +170,7 @@
                             android:layout_height="wrap_content"
                             android:text="Auto Backup"
                             android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"
-                            android:alpha="0.7" />
+                            android:textColor="?attr/colorOnSurfaceVariant" />
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/stat_auto_status"
@@ -477,7 +474,8 @@
                 android:layout_height="40dp"
                 android:layout_gravity="center"
                 android:src="@mipmap/ic_launcher"
-                android:contentDescription="Menu"
+                android:contentDescription="@string/menu_description"
+                android:tooltipText="@string/menu_tooltip"
                 android:clickable="true"
                 android:focusable="true"
                 android:background="@android:color/transparent"
