@@ -29,6 +29,9 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
 
+      - name: Clean previous release outputs
+        run: rm -rf app/build/outputs/apk/release/*
+
       - name: Get version from tag
         id: version
         run: |
@@ -54,7 +57,18 @@ jobs:
           set -euo pipefail
           
           # Locate the unsigned release APK (Gradle outputs *-unsigned.apk)
-          UNSIGNED_APK=$(ls app/build/outputs/apk/release/*-unsigned.apk | head -1)
+          UNSIGNED_APK=$(ls app/build/outputs/apk/release/*-unsigned.apk 2>/dev/null | head -1 || true)
+          
+          if [ -z "${UNSIGNED_APK}" ]; then
+            echo "No *-unsigned.apk found, falling back to first APK output"
+            UNSIGNED_APK=$(ls app/build/outputs/apk/release/*.apk 2>/dev/null | head -1 || true)
+          fi
+          
+          if [ -z "${UNSIGNED_APK}" ]; then
+            echo "::error::No APK found to sign in app/build/outputs/apk/release"
+            exit 1
+          fi
+          
           SIGNED_APK="app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.TAG }}.apk"
           
           echo "Signing $UNSIGNED_APK"
