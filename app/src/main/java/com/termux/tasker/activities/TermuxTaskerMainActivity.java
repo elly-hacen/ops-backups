@@ -42,6 +42,7 @@ import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.snackbar.Snackbar;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.logger.Logger;
@@ -51,7 +52,9 @@ import com.termux.shared.theme.NightMode;
 import com.termux.tasker.BackupWorker;
 import com.termux.tasker.R;
 import com.termux.tasker.TermuxTaskerApplication;
+import com.termux.tasker.UpdateChecker;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -92,6 +95,10 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     
     // Root view for Snackbar
     private View rootView;
+    
+    // Update checker
+    private UpdateChecker updateChecker;
+    private AlertDialog currentUpdateDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -190,9 +197,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         });
         
         findViewById(R.id.menu_check_updates).setOnClickListener(v -> {
-                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.update_url)));
-                    startActivity(browserIntent);
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            checkForUpdates();
         });
         
         findViewById(R.id.menu_privacy).setOnClickListener(v -> {
@@ -394,14 +400,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         super.onPause();
         
         // Stop interval preview updater
-        stopIntervalPreviewUpdater();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        
-        // Clean up handler
         stopIntervalPreviewUpdater();
     }
 
@@ -1290,6 +1288,185 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private void performHapticFeedbackLight(View view) {
         if (view != null) {
             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+        }
+    }
+    
+    // ==================== UPDATE FUNCTIONALITY ====================
+    
+    private void checkForUpdates() {
+        // Show checking dialog
+        View checkingView = getLayoutInflater().inflate(R.layout.dialog_checking_update, null);
+        AlertDialog checkingDialog = new AlertDialog.Builder(this)
+                .setView(checkingView)
+                .setCancelable(false)
+                .create();
+        
+        if (checkingDialog.getWindow() != null) {
+            checkingDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        checkingDialog.show();
+        
+        if (updateChecker == null) {
+            updateChecker = new UpdateChecker(this);
+        }
+        
+        updateChecker.checkForUpdates(new UpdateChecker.UpdateCheckListener() {
+            @Override
+            public void onUpdateAvailable(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize) {
+                checkingDialog.dismiss();
+                showUpdateAvailableDialog(latestVersion, currentVersion, releaseNotes, downloadUrl, fileSize);
+            }
+            
+            @Override
+            public void onNoUpdateAvailable(String currentVersion) {
+                checkingDialog.dismiss();
+                showSnackbar("You're on the latest version (v" + currentVersion + ")", Snackbar.LENGTH_LONG);
+            }
+            
+            @Override
+            public void onError(String error) {
+                checkingDialog.dismiss();
+                showSnackbar("Update check failed: " + error, Snackbar.LENGTH_LONG, "Retry", v -> checkForUpdates());
+            }
+        });
+    }
+    
+    private void showUpdateAvailableDialog(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize) {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_update_available, null);
+        
+        TextView currentVersionView = dialogView.findViewById(R.id.textview_current_version);
+        TextView latestVersionView = dialogView.findViewById(R.id.textview_latest_version);
+        TextView fileSizeView = dialogView.findViewById(R.id.textview_file_size);
+        TextView releaseNotesView = dialogView.findViewById(R.id.textview_release_notes);
+        
+        if (currentVersionView != null) currentVersionView.setText("v" + currentVersion);
+        if (latestVersionView != null) latestVersionView.setText("v" + latestVersion);
+        if (fileSizeView != null) fileSizeView.setText("Download size: " + UpdateChecker.formatFileSize(fileSize));
+        if (releaseNotesView != null) releaseNotesView.setText(releaseNotes);
+        
+        currentUpdateDialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create();
+        
+        if (currentUpdateDialog.getWindow() != null) {
+            currentUpdateDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        dialogView.findViewById(R.id.button_cancel).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
+            currentUpdateDialog.dismiss();
+        });
+        
+        dialogView.findViewById(R.id.button_download).setOnClickListener(v -> {
+            performHapticFeedback(v);
+            currentUpdateDialog.dismiss();
+            startDownload(downloadUrl, fileSize);
+        });
+        
+        currentUpdateDialog.show();
+    }
+    
+    private void startDownload(String downloadUrl, long totalSize) {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_download_progress, null);
+        
+        LinearProgressIndicator progressBar = dialogView.findViewById(R.id.progress_download);
+        TextView progressPercent = dialogView.findViewById(R.id.textview_progress_percent);
+        TextView progressSize = dialogView.findViewById(R.id.textview_progress_size);
+        
+        currentUpdateDialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(false)
+                .create();
+        
+        if (currentUpdateDialog.getWindow() != null) {
+            currentUpdateDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        dialogView.findViewById(R.id.button_cancel_download).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
+            if (updateChecker != null) {
+                updateChecker.cancelDownload();
+            }
+            currentUpdateDialog.dismiss();
+            showSnackbar("Download cancelled");
+        });
+        
+        currentUpdateDialog.show();
+        
+        updateChecker.downloadUpdate(downloadUrl, 
+            // Progress listener
+            (progress, downloadedBytes, totalBytes) -> {
+                if (progressBar != null) progressBar.setProgress(progress);
+                if (progressPercent != null) progressPercent.setText(progress + "%");
+                if (progressSize != null) {
+                    progressSize.setText(UpdateChecker.formatFileSize(downloadedBytes) + " / " + UpdateChecker.formatFileSize(totalBytes));
+                }
+            },
+            // Complete listener
+            new UpdateChecker.DownloadCompleteListener() {
+                @Override
+                public void onDownloadComplete(File apkFile) {
+                    currentUpdateDialog.dismiss();
+                    showInstallDialog(apkFile);
+                }
+                
+                @Override
+                public void onDownloadFailed(String error) {
+                    currentUpdateDialog.dismiss();
+                    showSnackbar("Download failed: " + error, Snackbar.LENGTH_LONG);
+                }
+            }
+        );
+    }
+    
+    private void showInstallDialog(File apkFile) {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_install_update, null);
+        
+        currentUpdateDialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create();
+        
+        if (currentUpdateDialog.getWindow() != null) {
+            currentUpdateDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        // Animate success icon
+        View successIcon = dialogView.findViewById(R.id.success_icon);
+        if (successIcon != null) {
+            Animation scaleAnim = AnimationUtils.loadAnimation(this, R.anim.success_scale);
+            successIcon.startAnimation(scaleAnim);
+            performHapticFeedback(successIcon);
+        }
+        
+        dialogView.findViewById(R.id.button_cancel_install).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
+            currentUpdateDialog.dismiss();
+            showSnackbar("Update saved. Install when ready.");
+        });
+        
+        dialogView.findViewById(R.id.button_install).setOnClickListener(v -> {
+            performHapticFeedback(v);
+            currentUpdateDialog.dismiss();
+            if (updateChecker != null) {
+                updateChecker.installApk(apkFile);
+            }
+        });
+        
+        currentUpdateDialog.show();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        
+        // Clean up handler
+        stopIntervalPreviewUpdater();
+        
+        // Clean up update checker
+        if (updateChecker != null) {
+            updateChecker.cleanup();
         }
     }
 }
