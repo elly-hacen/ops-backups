@@ -31,12 +31,19 @@ jobs:
 
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          # Get tag name (e.g., v1.0.0)
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          # Remove 'v' prefix for version name (e.g., 1.0.0)
+          VERSION=${TAG#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
           TERMUX_TASKER_APP__BUILD__APP_VERSION_NAME: ${{ steps.version.outputs.VERSION }}
+          TERMUX_TASKER_APP__BUILD__APK_VERSION_TAG: ${{ steps.version.outputs.TAG }}
 
       - name: Decode Keystore
         run: |
@@ -61,7 +68,7 @@ jobs:
           # Zipalign
           ${ANDROID_HOME}/build-tools/34.0.0/zipalign -v 4 \
             "$UNSIGNED_APK" \
-            "app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.VERSION }}.apk"
+            "app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.TAG }}.apk"
           
           # Remove unsigned
           rm "$UNSIGNED_APK"
@@ -73,11 +80,11 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          name: Release ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.TAG }}
           body: |
             ## What's Changed
             
-            Auto-generated release for ${{ steps.version.outputs.VERSION }}
+            Auto-generated release for ${{ steps.version.outputs.TAG }}
             
             ### Installation
             1. Download the APK below
