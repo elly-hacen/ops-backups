@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="24dp"
-    app:cardCornerRadius="24dp"
+    app:cardCornerRadius="@dimen/radius_xl"
     app:cardElevation="8dp"
     app:cardBackgroundColor="?attr/colorSurface">
 
@@ -162,7 +162,6 @@
                     android:text="No data is collected or sent to any servers. All operations happen locally on your device."
                     android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant"
-                    android:alpha="0.8"
                     android:lineSpacingMultiplier="1.4"
                     android:gravity="center" />
 

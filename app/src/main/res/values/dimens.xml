@@ -14,11 +14,18 @@
     <dimen name="spacing_small">8dp</dimen>
     <dimen name="spacing_tiny">4dp</dimen>
     
-    <!-- Consistent Design Tokens - Corner Radius -->
-    <dimen name="radius_card">16dp</dimen>
-    <dimen name="radius_button">12dp</dimen>
-    <dimen name="radius_dialog">28dp</dimen>
-    <dimen name="radius_chip">8dp</dimen>
+    <!-- Consistent Design Tokens - Corner Radius (Material 3 Scale) -->
+    <dimen name="radius_xs">4dp</dimen>      <!-- Chips, small components -->
+    <dimen name="radius_sm">8dp</dimen>      <!-- Buttons, inputs -->
+    <dimen name="radius_md">12dp</dimen>     <!-- List items, small cards -->
+    <dimen name="radius_lg">16dp</dimen>     <!-- Cards, containers -->
+    <dimen name="radius_xl">28dp</dimen>     <!-- Bottom sheets, dialogs -->
+    
+    <!-- Legacy aliases (for backward compatibility) -->
+    <dimen name="radius_card">@dimen/radius_lg</dimen>
+    <dimen name="radius_button">@dimen/radius_md</dimen>
+    <dimen name="radius_dialog">@dimen/radius_xl</dimen>
+    <dimen name="radius_chip">@dimen/radius_sm</dimen>
     
     <!-- Status Indicator -->
     <dimen name="status_indicator_size">12dp</dimen>

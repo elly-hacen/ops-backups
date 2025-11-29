@@ -7,7 +7,6 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -38,7 +37,7 @@ public class SchedulesActivity extends AppCompatActivity {
     private static final int MAX_HISTORY_TO_STORE = 200;
 
     private RecyclerView recyclerView;
-    private TextView emptyStateView;
+    private View emptyStateView;
     private TextView totalBackupsView;
     private TextView successCountView;
     private TextView failedCountView;
@@ -92,7 +91,10 @@ public class SchedulesActivity extends AppCompatActivity {
             int count = historyArray.length();
             
             if (count == 0) {
-                Toast.makeText(this, R.string.no_backup_history, Toast.LENGTH_SHORT).show();
+                View rootView = findViewById(android.R.id.content);
+                if (rootView != null) {
+                    Snackbar.make(rootView, R.string.no_backup_history, Snackbar.LENGTH_SHORT).show();
+                }
                 return;
             }
             
@@ -104,7 +106,10 @@ public class SchedulesActivity extends AppCompatActivity {
                         historyExecutor.execute(() -> {
                             prefs.edit().putString("backup_history", "[]").apply();
                             mainHandler.post(() -> {
-                                Toast.makeText(this, R.string.all_schedules_cleared, Toast.LENGTH_SHORT).show();
+                                View rootView = findViewById(android.R.id.content);
+                                if (rootView != null) {
+                                    Snackbar.make(rootView, R.string.all_schedules_cleared, Snackbar.LENGTH_SHORT).show();
+                                }
                                 loadScheduleHistory();
                             });
                         });
@@ -339,7 +344,7 @@ public class SchedulesActivity extends AppCompatActivity {
 
     private class ScheduleAdapter extends RecyclerView.Adapter<ScheduleViewHolder> {
         private final List<BackupHistoryItem> items;
-        private final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
+        private final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault());
 
         ScheduleAdapter(List<BackupHistoryItem> items) {
             this.items = items;
@@ -354,7 +359,12 @@ public class SchedulesActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(ScheduleViewHolder holder, int position) {
             BackupHistoryItem item = items.get(position);
-            holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
+            // Handle invalid/missing timestamp
+            if (item.timestamp > 0) {
+                holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
+            } else {
+                holder.timeView.setText("Unknown time");
+            }
             holder.categoryView.setText(item.category.toUpperCase(Locale.getDefault()));
             holder.statusView.setText(item.status + (item.message.isEmpty() ? "" : " - " + item.message));
             

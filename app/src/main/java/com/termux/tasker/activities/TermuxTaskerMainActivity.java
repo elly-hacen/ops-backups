@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -26,7 +27,6 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
@@ -42,6 +42,7 @@ import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.snackbar.Snackbar;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxConstants;
@@ -86,6 +87,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private TextView statStatus;
     private View statStatusIndicator;
     private TextView statAutoStatus;
+    private View statsContent;
+    private View statsSkeleton;
+    
+    // Root view for Snackbar
+    private View rootView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,6 +105,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }
         
         setContentView(R.layout.activity_termux_tasker_main);
+        rootView = findViewById(android.R.id.content);
 
         // Set NightMode.APP_NIGHT_MODE
         TermuxThemeUtils.setAppNightMode(this);
@@ -212,11 +219,22 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         statStatus = findViewById(R.id.stat_status);
         statStatusIndicator = findViewById(R.id.stat_status_indicator);
         statAutoStatus = findViewById(R.id.stat_auto_status);
+        statsContent = findViewById(R.id.stats_content);
+        statsSkeleton = findViewById(R.id.stats_skeleton);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        
+        // Show skeleton loading initially
+        showStatsLoading(true);
 
-        findViewById(R.id.button_run_backup).setOnClickListener(v -> triggerBackupCommand());
-        testScheduleButton.setOnClickListener(v -> testSchedulerNow());
+        findViewById(R.id.button_run_backup).setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+            triggerBackupCommand();
+        });
+        testScheduleButton.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+            testSchedulerNow();
+        });
 
         setupScheduleUI();
 
@@ -437,14 +455,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         String validationError = validateTermuxReady();
         if (validationError != null) {
             updateBackupStatus(validationError);
-            Toast.makeText(this, validationError, Toast.LENGTH_LONG).show();
+            showSnackbar(validationError, Snackbar.LENGTH_LONG);
             return;
         }
 
         // Check network connectivity
         if (!isNetworkAvailable()) {
             updateBackupStatus("No internet connection");
-            Toast.makeText(this, "No internet connection available", Toast.LENGTH_LONG).show();
+            showSnackbar("No internet connection available", Snackbar.LENGTH_LONG);
             return;
         }
 
@@ -452,7 +470,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         List<String> enabledScripts = getEnabledScripts();
         if (enabledScripts.isEmpty()) {
             updateBackupStatus(getString(R.string.no_enabled_scripts));
-            Toast.makeText(this, R.string.no_enabled_scripts, Toast.LENGTH_LONG).show();
+            showSnackbar(getString(R.string.no_enabled_scripts), Snackbar.LENGTH_LONG);
             return;
         }
 
@@ -480,7 +498,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         if (error != null) {
             showProgress(false);
             updateBackupStatus(error);
-            Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+            showSnackbar(error, Snackbar.LENGTH_LONG);
             return;
         }
         
@@ -504,7 +522,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                     android.content.ClipData clip = android.content.ClipData.newPlainText("View Logs", "cat /sdcard/ops-error-log.json");
                     if (clipboard != null) {
                         clipboard.setPrimaryClip(clip);
-                        Toast.makeText(TermuxTaskerMainActivity.this, "Command copied! Paste in Termux", Toast.LENGTH_LONG).show();
+                        showSnackbar("Command copied! Paste in Termux", Snackbar.LENGTH_LONG);
                     }
                 })
                 .setNegativeButton("Close", null)
@@ -546,7 +564,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                                     android.content.ClipData clip = android.content.ClipData.newPlainText("Error Log Path", "cat /sdcard/ops-error-log.json");
                                     if (clipboard != null) {
                                         clipboard.setPrimaryClip(clip);
-                                        Toast.makeText(TermuxTaskerMainActivity.this, "Command copied! Open Termux and paste", Toast.LENGTH_LONG).show();
+                                        showSnackbar("Command copied! Open Termux and paste", Snackbar.LENGTH_LONG);
                                     }
                                 })
                                 .setNegativeButton("Close", null)
@@ -700,6 +718,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         TextView scriptsCountView = dialogView.findViewById(R.id.textview_scripts_count);
         TextView lastBackupView = dialogView.findViewById(R.id.textview_last_backup_time);
+        View successIcon = dialogView.findViewById(R.id.success_icon);
         
         if (scriptsCountView != null) {
             scriptsCountView.setText(String.format("%d script(s) executed successfully", scriptCount));
@@ -720,9 +739,20 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
         
-        dialogView.findViewById(R.id.button_ok).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.button_ok).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
+            dialog.dismiss();
+        });
         
         dialog.show();
+        
+        // Animate the success icon with overshoot effect
+        if (successIcon != null) {
+            Animation scaleAnim = AnimationUtils.loadAnimation(this, R.anim.success_scale);
+            successIcon.startAnimation(scaleAnim);
+            // Haptic feedback on success
+            performHapticFeedback(successIcon);
+        }
     }
 
     private void setupScheduleUI() {
@@ -772,12 +802,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                 scheduleBackupWork();
                 // Show persistent background notification
                 BackupWorker.showBackgroundStatusNotification(this);
-                Toast.makeText(this, "✓ Auto backup enabled", Toast.LENGTH_SHORT).show();
+                performHapticFeedback(scheduleSwitch);
+                showSnackbar("✓ Auto backup enabled");
             } else {
                 cancelBackupWork();
                 // Hide persistent background notification
                 BackupWorker.hideBackgroundStatusNotification(this);
-                Toast.makeText(this, "Auto backup disabled", Toast.LENGTH_SHORT).show();
+                performHapticFeedbackLight(scheduleSwitch);
+                showSnackbar("Auto backup disabled");
             }
             updateStatsCard();
         });
@@ -856,7 +888,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
 
     private void testSchedulerNow() {
         if (!scheduleSwitch.isChecked()) {
-            Toast.makeText(this, "Enable auto backup first", Toast.LENGTH_SHORT).show();
+            showSnackbar("Enable auto backup first");
             return;
         }
 
@@ -885,10 +917,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }
 
         if (conditionsMet) {
-            Toast.makeText(this, getString(R.string.backup_scheduled_successfully), Toast.LENGTH_SHORT).show();
+            performHapticFeedback(testScheduleButton);
+            showSnackbar(getString(R.string.backup_scheduled_successfully));
             logBackupEvent("Scheduled", "Running now");
         } else {
-            Toast.makeText(this, getString(R.string.backup_already_scheduled) + "\n" + message, Toast.LENGTH_LONG).show();
+            showSnackbar(getString(R.string.backup_already_scheduled) + " - " + message, Snackbar.LENGTH_LONG);
             logBackupEvent("Queued", "Waiting for " + message);
         }
 
@@ -1033,6 +1066,47 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         if (statAutoStatus != null) {
             boolean enabled = prefs.getBoolean("schedule_enabled", false);
             statAutoStatus.setText(enabled ? "Active" : "Off");
+        }
+        
+        // Hide skeleton after data is loaded
+        showStatsLoading(false);
+    }
+    
+    private void showStatsLoading(boolean loading) {
+        if (statsContent == null || statsSkeleton == null) return;
+        
+        if (loading) {
+            statsContent.setVisibility(View.INVISIBLE);
+            statsSkeleton.setVisibility(View.VISIBLE);
+            // Pulse animation for skeleton
+            statsSkeleton.setAlpha(0.5f);
+            statsSkeleton.animate()
+                    .alpha(1f)
+                    .setDuration(600)
+                    .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator())
+                    .withEndAction(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (statsSkeleton.getVisibility() == View.VISIBLE) {
+                                statsSkeleton.animate()
+                                        .alpha(0.5f)
+                                        .setDuration(600)
+                                        .withEndAction(this)
+                                        .start();
+                            }
+                        }
+                    })
+                    .start();
+        } else {
+            statsSkeleton.animate().cancel();
+            statsSkeleton.setVisibility(View.GONE);
+            statsContent.setVisibility(View.VISIBLE);
+            // Fade in content
+            statsContent.setAlpha(0f);
+            statsContent.animate()
+                    .alpha(1f)
+                    .setDuration(200)
+                    .start();
         }
     }
     
@@ -1186,5 +1260,36 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         java.io.FileWriter writer = new java.io.FileWriter(file);
         writer.write(content);
         writer.close();
+    }
+    
+    // Helper method to show Snackbar with optional action
+    private void showSnackbar(String message) {
+        showSnackbar(message, Snackbar.LENGTH_SHORT, null, null);
+    }
+    
+    private void showSnackbar(String message, int duration) {
+        showSnackbar(message, duration, null, null);
+    }
+    
+    private void showSnackbar(String message, int duration, String actionText, View.OnClickListener action) {
+        if (rootView == null) return;
+        Snackbar snackbar = Snackbar.make(rootView, message, duration);
+        if (actionText != null && action != null) {
+            snackbar.setAction(actionText, action);
+        }
+        snackbar.show();
+    }
+    
+    // Helper method for haptic feedback
+    private void performHapticFeedback(View view) {
+        if (view != null) {
+            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+        }
+    }
+    
+    private void performHapticFeedbackLight(View view) {
+        if (view != null) {
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+        }
     }
 }

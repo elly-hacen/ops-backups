@@ -6,8 +6,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textview.MaterialTextView;
 import com.termux.shared.activity.media.AppCompatActivityUtils;
 import com.termux.shared.logger.Logger;
@@ -40,6 +41,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
     private View emptyStateView;
     private SharedPreferences prefs;
     private ScriptAdapter adapter;
+    private View rootView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +55,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
         }
         
         setContentView(R.layout.activity_scripts);
+        rootView = findViewById(android.R.id.content);
 
         TermuxThemeUtils.setAppNightMode(this);
         AppCompatActivityUtils.setNightMode(this, NightMode.getAppNightMode().getName(), true);
@@ -186,12 +189,12 @@ public class ScriptsManagementActivity extends AppCompatActivity {
             String path = pathEdit.getText() != null ? pathEdit.getText().toString().trim() : "";
             
             if (name.isEmpty()) {
-                Toast.makeText(this, R.string.error_empty_script_name, Toast.LENGTH_SHORT).show();
+                showSnackbar(getString(R.string.error_empty_script_name));
                 return;
             }
             
             if (path.isEmpty()) {
-                Toast.makeText(this, R.string.error_empty_script_path, Toast.LENGTH_SHORT).show();
+                showSnackbar(getString(R.string.error_empty_script_path));
                 return;
             }
             
@@ -269,11 +272,11 @@ public class ScriptsManagementActivity extends AppCompatActivity {
             }
             
             prefs.edit().putString("backup_scripts", scriptsArray.toString()).apply();
-            Toast.makeText(this, R.string.script_saved, Toast.LENGTH_SHORT).show();
+            showSnackbar(getString(R.string.script_saved));
             loadScripts();
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to save script: " + e.getMessage());
-            Toast.makeText(this, "Failed to save script", Toast.LENGTH_SHORT).show();
+            showSnackbar("Failed to save script");
         }
     }
 
@@ -309,7 +312,7 @@ public class ScriptsManagementActivity extends AppCompatActivity {
                             try {
                                 scriptsArray.remove(position);
                                 prefs.edit().putString("backup_scripts", scriptsArray.toString()).apply();
-                                Toast.makeText(this, R.string.script_deleted, Toast.LENGTH_SHORT).show();
+                                showSnackbar(getString(R.string.script_deleted));
                                 loadScripts();
                             } catch (Exception e) {
                                 Logger.logError(LOG_TAG, "Failed to delete: " + e.getMessage());
@@ -382,7 +385,8 @@ public class ScriptsManagementActivity extends AppCompatActivity {
                 ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 ClipData clip = ClipData.newPlainText("Script Path", item.path);
                 clipboard.setPrimaryClip(clip);
-                Toast.makeText(ScriptsManagementActivity.this, "Path copied", Toast.LENGTH_SHORT).show();
+                holder.copyButton.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+                showSnackbar("Path copied");
             });
             
             holder.editButton.setOnClickListener(v -> {
@@ -416,6 +420,12 @@ public class ScriptsManagementActivity extends AppCompatActivity {
             copyButton = itemView.findViewById(R.id.button_copy);
             editButton = itemView.findViewById(R.id.button_edit);
             deleteButton = itemView.findViewById(R.id.button_delete);
+        }
+    }
+    
+    private void showSnackbar(String message) {
+        if (rootView != null) {
+            Snackbar.make(rootView, message, Snackbar.LENGTH_SHORT).show();
         }
     }
 }

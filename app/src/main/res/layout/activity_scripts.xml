@@ -62,37 +62,36 @@
                 android:id="@+id/textview_empty_state"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="80dp"
+                android:layout_marginTop="60dp"
                 android:gravity="center"
                 android:orientation="vertical"
                 android:visibility="visible">
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="📝"
-                    android:textSize="48sp"
-                    android:alpha="0.6" />
+                <ImageView
+                    android:id="@+id/empty_state_icon"
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:src="@drawable/ic_empty_scripts"
+                    android:importantForAccessibility="no" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="20dp"
                     android:text="@string/no_scripts_configured"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                    android:textColor="?attr/colorOnSurface" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:paddingStart="32dp"
-                    android:paddingEnd="32dp"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp"
                     android:text="@string/empty_state_hint"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:alpha="0.8" />
+                    android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
 

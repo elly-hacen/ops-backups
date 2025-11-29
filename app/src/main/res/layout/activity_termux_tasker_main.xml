@@ -53,93 +53,138 @@
 
             <!-- Quick Stats Card -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_stats"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                app:cardCornerRadius="16dp"
+                app:cardCornerRadius="@dimen/radius_lg"
                 app:cardElevation="2dp"
                 app:strokeWidth="1dp"
                 app:strokeColor="?attr/colorOutlineVariant"
                 app:cardBackgroundColor="?attr/colorSurfaceContainerHighest">
 
-                <LinearLayout
+                <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="16dp"
-                    android:baselineAligned="false">
+                    android:layout_height="wrap_content">
 
-                    <!-- Last Backup Stat -->
+                    <!-- Actual Content -->
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:id="@+id/stats_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center">
+                        android:orientation="horizontal"
+                        android:padding="16dp"
+                        android:baselineAligned="false">
 
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Last Backup"
-                            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:id="@+id/stat_last_backup"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="Never"
-                            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                            android:textStyle="bold"
-                            android:textColor="?attr/colorOnSurface" />
-
-                    </LinearLayout>
-
-                    <!-- Divider -->
-                    <View
-                        android:layout_width="1dp"
-                        android:layout_height="match_parent"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="?attr/colorOutlineVariant"
-                        android:alpha="0.3" />
-
-                    <!-- Status Stat -->
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center">
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Status"
-                            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
+                        <!-- Last Backup Stat -->
                         <LinearLayout
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
-
-                            <View
-                                android:id="@+id/stat_status_indicator"
-                                android:layout_width="@dimen/status_indicator_size"
-                                android:layout_height="@dimen/status_indicator_size"
-                                android:layout_marginEnd="6dp"
-                                android:background="@drawable/status_indicator_idle"
-                                android:contentDescription="@string/backup_status_ready" />
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
 
                             <com.google.android.material.textview.MaterialTextView
-                                android:id="@+id/stat_status"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Ready"
+                                android:text="Last Backup"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+
+                            <com.google.android.material.textview.MaterialTextView
+                                android:id="@+id/stat_last_backup"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Never"
+                                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorOnSurface" />
+
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:alpha="0.5" />
+
+                        <!-- Status Stat -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <com.google.android.material.textview.MaterialTextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Status"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <View
+                                    android:id="@+id/stat_status_indicator"
+                                    android:layout_width="@dimen/status_indicator_size"
+                                    android:layout_height="@dimen/status_indicator_size"
+                                    android:layout_marginEnd="6dp"
+                                    android:background="@drawable/status_indicator_idle"
+                                    android:contentDescription="@string/backup_status_ready" />
+
+                                <com.google.android.material.textview.MaterialTextView
+                                    android:id="@+id/stat_status"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Ready"
+                                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                                    android:textStyle="bold"
+                                    android:textColor="?attr/colorOnSurface" />
+
+                            </LinearLayout>
+
+                        </LinearLayout>
+
+                        <!-- Divider -->
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:alpha="0.5" />
+
+                        <!-- Auto Status Stat -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <com.google.android.material.textview.MaterialTextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Auto Backup"
+                                android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+
+                            <com.google.android.material.textview.MaterialTextView
+                                android:id="@+id/stat_auto_status"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="Off"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
                                 android:textStyle="bold"
                                 android:textColor="?attr/colorOnSurface" />
@@ -148,43 +193,86 @@
 
                     </LinearLayout>
 
-                    <!-- Divider -->
-                    <View
-                        android:layout_width="1dp"
-                        android:layout_height="match_parent"
-                        android:layout_marginStart="8dp"
-                        android:layout_marginEnd="8dp"
-                        android:background="?attr/colorOutlineVariant"
-                        android:alpha="0.3" />
-
-                    <!-- Auto Status Stat -->
+                    <!-- Skeleton Loading State -->
                     <LinearLayout
-                        android:layout_width="0dp"
+                        android:id="@+id/stats_skeleton"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center">
+                        android:orientation="horizontal"
+                        android:padding="16dp"
+                        android:visibility="gone"
+                        android:baselineAligned="false">
 
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:text="Auto Backup"
-                            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
+                            <View
+                                android:layout_width="60dp"
+                                android:layout_height="12dp"
+                                android:background="@drawable/skeleton_text" />
+                            <View
+                                android:layout_width="48dp"
+                                android:layout_height="18dp"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/skeleton_text" />
+                        </LinearLayout>
 
-                        <com.google.android.material.textview.MaterialTextView
-                            android:id="@+id/stat_auto_status"
-                            android:layout_width="wrap_content"
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:alpha="0.3" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="Off"
-                            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                            android:textStyle="bold"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
+                            <View
+                                android:layout_width="40dp"
+                                android:layout_height="12dp"
+                                android:background="@drawable/skeleton_text" />
+                            <View
+                                android:layout_width="56dp"
+                                android:layout_height="18dp"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/skeleton_text" />
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:background="?attr/colorOutlineVariant"
+                            android:alpha="0.3" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
+                            <View
+                                android:layout_width="64dp"
+                                android:layout_height="12dp"
+                                android:background="@drawable/skeleton_text" />
+                            <View
+                                android:layout_width="32dp"
+                                android:layout_height="18dp"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/skeleton_text" />
+                        </LinearLayout>
 
                     </LinearLayout>
 
-                </LinearLayout>
+                </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Backup Card -->
@@ -193,7 +281,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:cardCornerRadius="20dp"
+                app:cardCornerRadius="@dimen/radius_lg"
                 app:cardElevation="0dp"
                 app:strokeWidth="0dp"
                 app:cardBackgroundColor="?attr/colorPrimaryContainer">
@@ -308,7 +396,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
-                app:cardCornerRadius="20dp"
+                app:cardCornerRadius="@dimen/radius_lg"
                 app:cardElevation="0dp"
                 app:strokeWidth="1dp"
                 app:strokeColor="?attr/colorOutlineVariant"
@@ -491,7 +579,7 @@
                 tools:text="v1.0.0"
                 android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                android:alpha="0.6"
+                android:alpha="0.7"
                 android:textSize="10sp"
                 android:clickable="true"
                 android:focusable="true" />
@@ -543,7 +631,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="14dp"
-            app:cardCornerRadius="18dp"
+            app:cardCornerRadius="@dimen/radius_lg"
             app:cardElevation="4dp"
             app:strokeWidth="1.5dp"
             app:strokeColor="?attr/colorPrimary"
@@ -601,7 +689,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
+            app:cardCornerRadius="@dimen/radius_lg"
             app:cardElevation="2dp"
             app:strokeWidth="0dp"
             app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
@@ -645,8 +733,7 @@
                         android:layout_marginTop="2dp"
                         android:text="Setup Termux and scripts"
                         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:alpha="0.8" />
+                        android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
 
@@ -658,7 +745,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="14dp"
-            app:cardCornerRadius="18dp"
+            app:cardCornerRadius="@dimen/radius_lg"
             app:cardElevation="4dp"
             app:strokeWidth="1.5dp"
             app:strokeColor="?attr/colorPrimary"
@@ -716,7 +803,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
+            app:cardCornerRadius="@dimen/radius_lg"
             app:cardElevation="2dp"
             app:strokeWidth="0dp"
             app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
@@ -760,8 +847,7 @@
                         android:layout_marginTop="2dp"
                         android:text="View releases on GitHub"
                         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:alpha="0.8" />
+                        android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
 
@@ -773,7 +859,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
+            app:cardCornerRadius="@dimen/radius_lg"
             app:cardElevation="2dp"
             app:strokeWidth="0dp"
             app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
@@ -828,7 +914,7 @@
             android:id="@+id/menu_about"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="16dp"
+            app:cardCornerRadius="@dimen/radius_lg"
             app:cardElevation="2dp"
             app:strokeWidth="0dp"
             app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
@@ -872,8 +958,7 @@
                         android:layout_marginTop="2dp"
                         android:text="App info and developer"
                         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:alpha="0.8" />
+                        android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
 
