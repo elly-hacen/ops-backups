@@ -51,10 +51,15 @@ jobs:
         
       - name: Sign APK
         run: |
-          # Find the unsigned APK
-          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          set -euo pipefail
           
-          # Sign with jarsigner
+          # Locate the unsigned release APK (Gradle outputs *-unsigned.apk)
+          UNSIGNED_APK=$(ls app/build/outputs/apk/release/*-unsigned.apk | head -1)
+          SIGNED_APK="app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.TAG }}.apk"
+          
+          echo "Signing $UNSIGNED_APK"
+          
+          # Sign with jarsigner (in-place on unsigned file)
           jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
             -keystore app/release-key.jks \
             -storepass "${{ secrets.KEY_STORE_PASSWORD }}" \
@@ -62,15 +67,15 @@ jobs:
             "$UNSIGNED_APK" \
             "${{ secrets.KEY_ALIAS }}"
           
-          # Verify
+          # Verify signature
           jarsigner -verify "$UNSIGNED_APK"
           
-          # Zipalign
+          # Align into a new output file
           ${ANDROID_HOME}/build-tools/34.0.0/zipalign -v 4 \
             "$UNSIGNED_APK" \
-            "app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.TAG }}.apk"
+            "$SIGNED_APK"
           
-          # Remove unsigned
+          # Clean up unsigned artifact so future runs don't grab it
           rm "$UNSIGNED_APK"
 
       - name: Create Release
