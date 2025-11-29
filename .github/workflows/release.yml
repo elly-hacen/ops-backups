@@ -89,8 +89,11 @@ jobs:
           echo "Verifying signed APK"
           ${ANDROID_HOME}/build-tools/34.0.0/apksigner verify "$SIGNED_APK"
           
-          # Clean up intermediate artifacts
-          rm -f "$UNSIGNED_APK" "$ALIGNED_APK"
+          # Clean up intermediate artifacts if they differ from signed output
+          if [ "$UNSIGNED_APK" != "$SIGNED_APK" ]; then
+            rm -f "$UNSIGNED_APK"
+          fi
+          rm -f "$ALIGNED_APK"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
