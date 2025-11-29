@@ -52,7 +52,7 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-key.jks
         
-      - name: Sign APK
+      - name: Align and Sign APK
         run: |
           set -euo pipefail
           
@@ -69,28 +69,28 @@ jobs:
             exit 1
           fi
           
+          ALIGNED_APK="app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.TAG }}-aligned.apk"
           SIGNED_APK="app/build/outputs/apk/release/${APP_NAME}_${{ steps.version.outputs.TAG }}.apk"
           
-          echo "Signing $UNSIGNED_APK"
-          
-          # Sign with jarsigner (in-place on unsigned file)
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
-            -keystore app/release-key.jks \
-            -storepass "${{ secrets.KEY_STORE_PASSWORD }}" \
-            -keypass "${{ secrets.KEY_PASSWORD }}" \
-            "$UNSIGNED_APK" \
-            "${{ secrets.KEY_ALIAS }}"
-          
-          # Verify signature
-          jarsigner -verify "$UNSIGNED_APK"
-          
-          # Align into a new output file
+          echo "Zipaligning $UNSIGNED_APK -> $ALIGNED_APK"
           ${ANDROID_HOME}/build-tools/34.0.0/zipalign -v 4 \
             "$UNSIGNED_APK" \
-            "$SIGNED_APK"
+            "$ALIGNED_APK"
           
-          # Clean up unsigned artifact so future runs don't grab it
-          rm "$UNSIGNED_APK"
+          echo "Signing aligned APK -> $SIGNED_APK"
+          ${ANDROID_HOME}/build-tools/34.0.0/apksigner sign \
+            --ks app/release-key.jks \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+            --ks-pass pass:"${{ secrets.KEY_STORE_PASSWORD }}" \
+            --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+            --in "$ALIGNED_APK" \
+            --out "$SIGNED_APK"
+          
+          echo "Verifying signed APK"
+          ${ANDROID_HOME}/build-tools/34.0.0/apksigner verify "$SIGNED_APK"
+          
+          # Clean up intermediate artifacts
+          rm -f "$UNSIGNED_APK" "$ALIGNED_APK"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
