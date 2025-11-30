@@ -138,35 +138,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         bottomSheetBehavior.setHideable(true);
         bottomSheetBehavior.setSkipCollapsed(true);
-        
-        // Add padding for navigation bar (edge-to-edge)
-        View bottomSheetContent = findViewById(R.id.bottom_sheet_content);
-        if (bottomSheetContent != null) {
-            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(bottomSheetContent, (v, insets) -> {
-                int navBarHeight = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom;
-                v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), 
-                    (int) (48 * getResources().getDisplayMetrics().density) + navBarHeight);
-                return insets;
-            });
-        }
-        
-        // Setup floating menu button
-        View menuButton = findViewById(R.id.menu_icon);
-        if (menuButton != null) {
-            // Load and start continuous pulse animation
-            final Animation pulseAnim = AnimationUtils.loadAnimation(this, R.anim.bounce);
-            menuButton.post(() -> menuButton.startAnimation(pulseAnim));
-            
-            menuButton.setOnClickListener(v -> {
-                Logger.logInfo(LOG_TAG, "Menu button clicked");
-                if (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
-                    menuButton.clearAnimation();
-                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-                } else {
-                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-                }
-            });
-        }
 
         // Setup scrim overlay
         View scrim = findViewById(R.id.scrim);
@@ -185,11 +156,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                 if (scrim != null) {
                     if (newState == BottomSheetBehavior.STATE_HIDDEN) {
                         scrim.setVisibility(View.GONE);
-                        // Restart animation when sheet is hidden
-                        if (menuButton != null) {
-                            Animation pulseAnim = AnimationUtils.loadAnimation(TermuxTaskerMainActivity.this, R.anim.bounce);
-                            menuButton.startAnimation(pulseAnim);
-                        }
                     } else {
                         scrim.setVisibility(View.VISIBLE);
                     }
@@ -205,19 +171,29 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             }
         });
 
-        // Setup bottom sheet menu items
-        findViewById(R.id.menu_schedules).setOnClickListener(v -> {
-                    startActivity(new Intent(this, SchedulesActivity.class));
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+        // Setup bottom navigation bar
+        findViewById(R.id.nav_schedules).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
+            startActivity(new Intent(this, SchedulesActivity.class));
         });
         
-        findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
-                    startActivity(new Intent(this, UsageGuideActivity.class));
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-        });
-        
-        findViewById(R.id.menu_scripts).setOnClickListener(v -> {
+        findViewById(R.id.nav_scripts).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
             startActivity(new Intent(this, ScriptsManagementActivity.class));
+        });
+        
+        findViewById(R.id.nav_menu_fab).setOnClickListener(v -> {
+            performHapticFeedbackLight(v);
+            if (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+            } else {
+                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            }
+        });
+
+        // Setup bottom sheet menu items
+        findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
+            startActivity(new Intent(this, UsageGuideActivity.class));
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
         
