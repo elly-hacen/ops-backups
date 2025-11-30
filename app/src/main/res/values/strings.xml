@@ -38,6 +38,10 @@
     <string name="dialog_ok">Close</string>
     <string name="action_check_updates">Check for Updates</string>
     <string name="update_url">https://github.com/elly-hacen/ops-backups</string>
+    <string name="update_current_label">Current</string>
+    <string name="update_latest_label">Latest</string>
+    <string name="download_size_format">Download size: %1$s</string>
+    <string name="action_download">Download</string>
 
     <!-- Main Activity -->
     <string name="card_backup_title">Manual Backup</string>

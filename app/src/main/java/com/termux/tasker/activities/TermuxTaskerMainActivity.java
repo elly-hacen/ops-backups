@@ -1376,13 +1376,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         TextView currentVersionView = dialogView.findViewById(R.id.textview_current_version);
         TextView latestVersionView = dialogView.findViewById(R.id.textview_latest_version);
-        TextView fileSizeView = dialogView.findViewById(R.id.textview_file_size);
+        TextView downloadSizeView = dialogView.findViewById(R.id.textview_download_size);
         TextView releaseNotesView = dialogView.findViewById(R.id.textview_release_notes);
         View releaseLink = dialogView.findViewById(R.id.button_release_link);
         
         if (currentVersionView != null) currentVersionView.setText("v" + currentVersion);
         if (latestVersionView != null) latestVersionView.setText("v" + latestVersion);
-        if (fileSizeView != null) fileSizeView.setText("Download size: " + UpdateChecker.formatFileSize(fileSize));
+        if (downloadSizeView != null) downloadSizeView.setText(getString(R.string.download_size_format, UpdateChecker.formatFileSize(fileSize)));
         if (releaseNotesView != null) releaseNotesView.setText(formatReleaseNotes(releaseNotes));
         if (releaseLink != null) {
             releaseLink.setVisibility(TextUtils.isEmpty(releaseUrl) ? View.GONE : View.VISIBLE);
@@ -1537,6 +1537,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         StringBuilder builder = new StringBuilder();
         for (String line : normalized.split("\n")) {
             String trimmed = line.trim();
+            if (TextUtils.isEmpty(trimmed)) {
+                continue;
+            }
+            if (trimmed.startsWith("#")) {
+                continue;
+            }
             if (trimmed.startsWith("- ")) {
                 builder.append("• ").append(trimmed.substring(2).trim());
             } else {

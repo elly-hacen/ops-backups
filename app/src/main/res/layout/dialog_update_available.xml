@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="24dp"
-    app:cardCornerRadius="@dimen/radius_xl"
+    app:cardCornerRadius="24dp"
     app:cardElevation="8dp"
     app:cardBackgroundColor="?attr/colorSurface">
 
@@ -13,46 +13,43 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="?attr/colorPrimaryContainer"
+            android:gravity="center_horizontal"
             android:orientation="vertical"
-            android:padding="24dp"
-            android:gravity="center"
-            android:background="?attr/colorPrimaryContainer">
+            android:padding="24dp">
 
-            <ImageView
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:src="@drawable/ic_update"
-                app:tint="?attr/colorOnPrimaryContainer"
-                android:importantForAccessibility="no" />
+            <FrameLayout
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="@drawable/bg_update_icon_circle">
+
+                <ImageView
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_update"
+                    android:tint="?attr/colorOnPrimary"
+                    android:importantForAccessibility="no" />
+            </FrameLayout>
 
             <com.google.android.material.textview.MaterialTextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="Update Available"
-                android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
+                android:text="@string/action_check_updates"
+                android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
                 android:textColor="?attr/colorOnPrimaryContainer"
                 android:textStyle="bold" />
 
-        </LinearLayout>
-
-        <!-- Content -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp">
-
-            <!-- Version info -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center">
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:orientation="horizontal">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -64,9 +61,10 @@
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Current"
+                        android:text="@string/update_current_label"
                         android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:textColor="?attr/colorOnPrimaryContainer"
+                        android:alpha="0.8" />
 
                     <com.google.android.material.textview.MaterialTextView
                         android:id="@+id/textview_current_version"
@@ -75,16 +73,17 @@
                         android:layout_marginTop="4dp"
                         android:text="v1.0.0"
                         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="?attr/colorOnPrimaryContainer"
                         android:fontFamily="monospace" />
-
                 </LinearLayout>
 
                 <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
                     android:src="@drawable/ic_arrow_forward"
-                    app:tint="?attr/colorPrimary"
+                    android:tint="@android:color/white"
                     android:importantForAccessibility="no" />
 
                 <LinearLayout
@@ -97,76 +96,88 @@
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Latest"
+                        android:text="@string/update_latest_label"
                         android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
+                        android:textColor="?attr/colorOnPrimaryContainer"
+                        android:alpha="0.8" />
 
                     <com.google.android.material.textview.MaterialTextView
                         android:id="@+id/textview_latest_version"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="v1.1.0"
+                        android:text="v1.0.4"
                         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                        android:textColor="?attr/colorPrimary"
+                        android:textColor="?attr/colorOnPrimaryContainer"
                         android:textStyle="bold"
                         android:fontFamily="monospace" />
-
                 </LinearLayout>
-
             </LinearLayout>
 
-            <!-- File size -->
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/textview_file_size"
-                android:layout_width="match_parent"
+                android:id="@+id/textview_download_size"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:gravity="center"
-                android:text="Download size: 5.2 MB"
-                android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:background="@drawable/bg_download_badge"
+                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                android:textColor="?attr/colorOnPrimary"
+                android:text="@string/download_size_format" />
+        </LinearLayout>
 
-            <!-- Release notes -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
             <com.google.android.material.textview.MaterialTextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="What's New"
+                android:text="@string/label_whats_new"
                 android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
                 android:textColor="?attr/colorOnSurface"
                 android:textStyle="bold" />
-
-            <ScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:maxHeight="120dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/textview_release_notes"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="• Bug fixes and improvements"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:lineSpacingMultiplier="1.3" />
-
-            </ScrollView>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_release_link"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="4dp"
                 android:text="@string/action_view_full_release"
                 android:textAllCaps="false"
                 android:visibility="gone" />
 
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="?attr/colorOutlineVariant">
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxHeight="160dp"
+                    android:padding="16dp">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/textview_release_notes"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                        android:textColor="?attr/colorOnSurface" />
+                </ScrollView>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 
-        <!-- Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -181,7 +192,7 @@
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Later"
+                android:text="@string/cancel"
                 android:textAllCaps="false" />
 
             <com.google.android.material.button.MaterialButton
@@ -191,7 +202,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:minWidth="120dp"
-                android:text="Download"
+                android:text="@string/action_download"
                 android:textAllCaps="false"
                 android:textStyle="bold"
                 app:icon="@drawable/ic_download"
@@ -202,4 +213,3 @@
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>
-
