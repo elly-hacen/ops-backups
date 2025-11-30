@@ -1,8 +1,3 @@
-        findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-            requestReleaseNotes(true, true);
-        });
-
 package com.termux.tasker.activities;
 
 import android.content.Intent;
@@ -214,6 +209,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         findViewById(R.id.menu_check_updates).setOnClickListener(v -> {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
             checkForUpdates();
+        });
+
+        findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            requestReleaseNotes(true, true);
         });
         
         findViewById(R.id.menu_privacy).setOnClickListener(v -> {
