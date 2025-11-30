@@ -14,12 +14,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.view.animation.OvershootInterpolator;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
@@ -33,6 +35,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.card.MaterialCardView;
 import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
@@ -52,6 +55,7 @@ import com.termux.shared.theme.NightMode;
 import com.termux.tasker.BackupWorker;
 import com.termux.tasker.R;
 import com.termux.tasker.TermuxTaskerApplication;
+import com.termux.tasker.BuildConfig;
 import com.termux.tasker.UpdateChecker;
 
 import java.io.File;
@@ -96,6 +100,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     // Root view for Snackbar
     private View rootView;
     
+    private MaterialCardView statsCard;
+    private String cachedReleaseNotes;
+    private String cachedReleaseNotesVersion;
+    private String cachedReleaseNotesUrl;
+
     // Update checker
     private UpdateChecker updateChecker;
     private AlertDialog currentUpdateDialog;
@@ -113,6 +122,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         setContentView(R.layout.activity_termux_tasker_main);
         rootView = findViewById(android.R.id.content);
+        statsCard = findViewById(R.id.card_stats);
 
         // Set NightMode.APP_NIGHT_MODE
         TermuxThemeUtils.setAppNightMode(this);
@@ -211,6 +221,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
 
+        findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            requestReleaseNotes(true, true);
+        });
+
         backupStatusTextView = findViewById(R.id.textview_backup_status);
         lastBackupTextView = findViewById(R.id.textview_last_backup);
         progressBackup = findViewById(R.id.progress_backup);
@@ -302,6 +317,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        maybeShowWhatsNewOnLaunch();
     }
 
     private void requestPermissionsIfNeeded() {
@@ -751,6 +768,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             // Haptic feedback on success
             performHapticFeedback(successIcon);
         }
+
+        playStatsCelebration();
     }
 
     private void setupScheduleUI() {
@@ -1049,6 +1068,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         updateStatsCard();
     }
     
+    private UpdateChecker getUpdateChecker() {
+        if (updateChecker == null) {
+            updateChecker = new UpdateChecker(this);
+        }
+        return updateChecker;
+    }
+
     private void updateStatsCard() {
         // Update last backup stat
         long lastBackup = prefs.getLong("last_backup_time", 0);
@@ -1139,6 +1165,22 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         // Show success dialog
         List<String> enabledScripts = getEnabledScripts();
         showSuccessDialog(enabledScripts.size());
+    }
+
+    private void playStatsCelebration() {
+        if (statsCard == null) return;
+        statsCard.animate().cancel();
+        statsCard.animate()
+                .scaleX(1.04f)
+                .scaleY(1.04f)
+                .setDuration(220)
+                .setInterpolator(new OvershootInterpolator())
+                .withEndAction(() -> statsCard.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(180)
+                        .start())
+                .start();
     }
 
     private void logBackupEvent(String status, String message) {
@@ -1294,55 +1336,63 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     // ==================== UPDATE FUNCTIONALITY ====================
     
     private void checkForUpdates() {
-        // Show checking dialog
         View checkingView = getLayoutInflater().inflate(R.layout.dialog_checking_update, null);
         AlertDialog checkingDialog = new AlertDialog.Builder(this)
                 .setView(checkingView)
                 .setCancelable(false)
                 .create();
-        
+
         if (checkingDialog.getWindow() != null) {
             checkingDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
         checkingDialog.show();
-        
-        if (updateChecker == null) {
-            updateChecker = new UpdateChecker(this);
-        }
-        
-        updateChecker.checkForUpdates(new UpdateChecker.UpdateCheckListener() {
+
+        getUpdateChecker().checkForUpdates(new UpdateChecker.UpdateCheckListener() {
             @Override
-            public void onUpdateAvailable(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize) {
+            public void onUpdateAvailable(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize, String releaseUrl) {
                 checkingDialog.dismiss();
-                showUpdateAvailableDialog(latestVersion, currentVersion, releaseNotes, downloadUrl, fileSize);
+                cachedReleaseNotes = releaseNotes;
+                cachedReleaseNotesVersion = latestVersion;
+                cachedReleaseNotesUrl = releaseUrl;
+                showUpdateAvailableDialog(latestVersion, currentVersion, releaseNotes, downloadUrl, fileSize, releaseUrl);
             }
-            
+
             @Override
             public void onNoUpdateAvailable(String currentVersion) {
                 checkingDialog.dismiss();
-                showSnackbar("You're on the latest version (v" + currentVersion + ")", Snackbar.LENGTH_LONG);
+                showSnackbar(getString(R.string.backup_already_scheduled) + "\n" + getString(R.string.schedule_status_active, getRelativeTimeString(prefs.getLong("last_backup_time", 0))), Snackbar.LENGTH_LONG);
             }
-            
+
             @Override
             public void onError(String error) {
                 checkingDialog.dismiss();
-                showSnackbar("Update check failed: " + error, Snackbar.LENGTH_LONG, "Retry", v -> checkForUpdates());
+                showSnackbar("Update check failed: " + error, Snackbar.LENGTH_LONG, getString(R.string.action_retry), v -> checkForUpdates());
             }
         });
     }
     
-    private void showUpdateAvailableDialog(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize) {
+    private void showUpdateAvailableDialog(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize, String releaseUrl) {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_update_available, null);
         
         TextView currentVersionView = dialogView.findViewById(R.id.textview_current_version);
         TextView latestVersionView = dialogView.findViewById(R.id.textview_latest_version);
         TextView fileSizeView = dialogView.findViewById(R.id.textview_file_size);
         TextView releaseNotesView = dialogView.findViewById(R.id.textview_release_notes);
+        View releaseLink = dialogView.findViewById(R.id.button_release_link);
         
         if (currentVersionView != null) currentVersionView.setText("v" + currentVersion);
         if (latestVersionView != null) latestVersionView.setText("v" + latestVersion);
         if (fileSizeView != null) fileSizeView.setText("Download size: " + UpdateChecker.formatFileSize(fileSize));
-        if (releaseNotesView != null) releaseNotesView.setText(releaseNotes);
+        if (releaseNotesView != null) releaseNotesView.setText(formatReleaseNotes(releaseNotes));
+        if (releaseLink != null) {
+            releaseLink.setVisibility(TextUtils.isEmpty(releaseUrl) ? View.GONE : View.VISIBLE);
+            releaseLink.setOnClickListener(v -> {
+                performHapticFeedbackLight(v);
+                if (!TextUtils.isEmpty(releaseUrl)) {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(releaseUrl)));
+                }
+            });
+        }
         
         currentUpdateDialog = new AlertDialog.Builder(this)
                 .setView(dialogView)
@@ -1394,7 +1444,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         currentUpdateDialog.show();
         
-        updateChecker.downloadUpdate(downloadUrl, 
+        getUpdateChecker().downloadUpdate(downloadUrl, 
             // Progress listener
             (progress, downloadedBytes, totalBytes) -> {
                 if (progressBar != null) progressBar.setProgress(progress);
@@ -1419,6 +1469,91 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             }
         );
     }
+
+    private void maybeShowWhatsNewOnLaunch() {
+        SharedPreferences prefs = getReleaseNotesPrefs();
+        String lastSeen = prefs.getString("last_seen_version", "");
+        String current = BuildConfig.VERSION_NAME;
+        if (TextUtils.equals(lastSeen, current)) return;
+        requestReleaseNotes(false, false);
+    }
+
+    private void requestReleaseNotes(boolean allowDifferentVersion, boolean userInitiated) {
+        showSnackbar(getString(R.string.release_notes_loading), Snackbar.LENGTH_SHORT);
+        getUpdateChecker().fetchLatestReleaseNotes(new UpdateChecker.ReleaseNotesListener() {
+            @Override
+            public void onSuccess(String version, String releaseNotes, String releaseUrl) {
+                if (!allowDifferentVersion && !TextUtils.equals(version, BuildConfig.VERSION_NAME)) {
+                    if (userInitiated) {
+                        showSnackbar(getString(R.string.release_notes_unavailable), Snackbar.LENGTH_LONG);
+                    }
+                    return;
+                }
+                cachedReleaseNotes = releaseNotes;
+                cachedReleaseNotesVersion = version;
+                cachedReleaseNotesUrl = releaseUrl;
+                showReleaseNotesSheet(version, releaseNotes, releaseUrl);
+                if (!allowDifferentVersion) {
+                    markReleaseNotesSeen();
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                if (userInitiated) {
+                    showSnackbar(getString(R.string.release_notes_error), Snackbar.LENGTH_LONG);
+                } else {
+                    Logger.logError(LOG_TAG, "Release notes fetch failed: " + error);
+                }
+            }
+        });
+    }
+
+    private void showReleaseNotesSheet(String version, String releaseNotes, String releaseUrl) {
+        BottomSheetDialog dialog = new BottomSheetDialog(this);
+        View view = getLayoutInflater().inflate(R.layout.bottom_sheet_release_notes, null);
+        ((TextView) view.findViewById(R.id.text_release_version)).setText(getString(R.string.release_notes_version_label, version));
+        ((TextView) view.findViewById(R.id.text_release_notes)).setText(formatReleaseNotes(releaseNotes));
+        view.findViewById(R.id.button_release_close).setOnClickListener(v -> dialog.dismiss());
+        View moreButton = view.findViewById(R.id.button_release_more);
+        if (TextUtils.isEmpty(releaseUrl)) {
+            moreButton.setVisibility(View.GONE);
+        } else {
+            moreButton.setOnClickListener(v -> {
+                performHapticFeedbackLight(v);
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(releaseUrl)));
+                dialog.dismiss();
+            });
+        }
+        dialog.setContentView(view);
+        dialog.show();
+    }
+
+    private CharSequence formatReleaseNotes(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return getString(R.string.release_notes_empty);
+        }
+        String normalized = raw.replace("\r", "");
+        StringBuilder builder = new StringBuilder();
+        for (String line : normalized.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("- ")) {
+                builder.append("• ").append(trimmed.substring(2).trim());
+            } else {
+                builder.append(trimmed);
+            }
+            builder.append("\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private void markReleaseNotesSeen() {
+        getReleaseNotesPrefs().edit().putString("last_seen_version", BuildConfig.VERSION_NAME).apply();
+    }
+
+    private SharedPreferences getReleaseNotesPrefs() {
+        return getSharedPreferences("ReleaseNotes", MODE_PRIVATE);
+    }
     
     private void showInstallDialog(File apkFile) {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_install_update, null);
@@ -1438,6 +1573,21 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             Animation scaleAnim = AnimationUtils.loadAnimation(this, R.anim.success_scale);
             successIcon.startAnimation(scaleAnim);
             performHapticFeedback(successIcon);
+        }
+        View releaseNotesButton = dialogView.findViewById(R.id.button_view_release_notes);
+        if (releaseNotesButton != null) {
+            if (!TextUtils.isEmpty(cachedReleaseNotes)) {
+                releaseNotesButton.setVisibility(View.VISIBLE);
+                releaseNotesButton.setOnClickListener(v -> {
+                    performHapticFeedbackLight(v);
+                    showReleaseNotesSheet(
+                            TextUtils.isEmpty(cachedReleaseNotesVersion) ? BuildConfig.VERSION_NAME : cachedReleaseNotesVersion,
+                            cachedReleaseNotes,
+                            cachedReleaseNotesUrl);
+                });
+            } else {
+                releaseNotesButton.setVisibility(View.GONE);
+            }
         }
         
         dialogView.findViewById(R.id.button_cancel_install).setOnClickListener(v -> {

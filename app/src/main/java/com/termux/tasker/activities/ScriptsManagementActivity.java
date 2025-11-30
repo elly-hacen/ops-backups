@@ -74,6 +74,10 @@ public class ScriptsManagementActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recycler_scripts);
         emptyStateView = findViewById(R.id.textview_empty_state);
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        View emptyAction = emptyStateView.findViewById(R.id.empty_state_action);
+        if (emptyAction != null) {
+            emptyAction.setOnClickListener(v -> showAddEditDialog(-1, null));
+        }
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         
