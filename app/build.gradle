@@ -17,14 +17,18 @@ android {
     compileSdk project.properties.compileSdkVersion.toInteger()
     def appVersionName = System.getenv("TERMUX_TASKER_APP__BUILD__APP_VERSION_NAME") ?: ""
     def apkVersionTag = System.getenv("TERMUX_TASKER_APP__BUILD__APK_VERSION_TAG") ?: ""
-    def appVersionCode = System.getenv("TERMUX_TASKER_APP__BUILD__APP_VERSION_CODE")?.toInteger() ?: 1006
+    // Calculate version code from versionName: major*10000 + minor*100 + patch
+    def baseVersionName = "2.1.1"
+    def versionParts = baseVersionName.split("\\.")
+    def defaultVersionCode = versionParts[0].toInteger() * 10000 + versionParts[1].toInteger() * 100 + versionParts[2].toInteger()
+    def appVersionCode = System.getenv("TERMUX_TASKER_APP__BUILD__APP_VERSION_CODE")?.toInteger() ?: defaultVersionCode
 
     defaultConfig {
         applicationId "com.termux.tasker"
         minSdk project.properties.minSdkVersion.toInteger()
         targetSdk project.properties.targetSdkVersion.toInteger()
         versionCode appVersionCode
-        versionName "1.0.6"
+        versionName "2.1.1"
 
         if (appVersionName) versionName = appVersionName
         validateVersionName(versionName)

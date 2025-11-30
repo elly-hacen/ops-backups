@@ -98,11 +98,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private TextView statAutoStatus;
     private View statsContent;
     private View statsSkeleton;
+    private com.google.android.material.chip.Chip headerStatusChip;
+    private com.google.android.material.card.MaterialCardView statusStatCard;
     
     // Root view for Snackbar
     private View rootView;
     
-    private MaterialCardView statsCard;
+    private View statsCard;
     private String cachedReleaseNotes;
     private String cachedReleaseNotesVersion;
     private String cachedReleaseNotesUrl;
@@ -189,6 +191,26 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             }
         });
         
+        // Handle system insets for status bar and navigation bar
+        View mainContent = findViewById(R.id.main_content);
+        View bottomNavContainer = findViewById(R.id.bottom_nav_container);
+        
+        if (mainContent != null) {
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(mainContent, (v, insets) -> {
+                int statusBarHeight = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars()).top;
+                v.setPadding(v.getPaddingLeft(), statusBarHeight + 16, v.getPaddingRight(), v.getPaddingBottom());
+                return insets;
+            });
+        }
+        
+        if (bottomNavContainer != null) {
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(bottomNavContainer, (v, insets) -> {
+                int navBarHeight = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom;
+                v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), navBarHeight);
+                return insets;
+            });
+        }
+        
         // Setup bottom sheet menu items
         findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
                     startActivity(new Intent(this, UsageGuideActivity.class));
@@ -229,8 +251,10 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         statStatus = findViewById(R.id.stat_status);
         statStatusIndicator = findViewById(R.id.stat_status_indicator);
         statAutoStatus = findViewById(R.id.stat_auto_status);
-        statsContent = findViewById(R.id.stats_content);
+        statsContent = findViewById(R.id.card_stats); // The actual stats row
         statsSkeleton = findViewById(R.id.stats_skeleton);
+        headerStatusChip = findViewById(R.id.chip_header_status);
+        statusStatCard = findViewById(R.id.card_status_stat);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         
@@ -679,24 +703,63 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         if (backupStatusTextView == null) return;
         backupStatusTextView.setText(message);
         
+        String statusText = "Ready";
+        int indicatorRes = R.drawable.status_indicator_idle;
+        int chipBgColor = com.google.android.material.R.attr.colorTertiaryContainer;
+        
+        // Determine status
+        if (message.isEmpty() || message.contains("Ready")) {
+            statusText = "Ready";
+            indicatorRes = R.drawable.status_indicator_idle;
+        } else if (message.contains("success") || message.contains("Success")) {
+            statusText = "Success";
+            indicatorRes = R.drawable.status_indicator_success;
+        } else if (message.contains("fail") || message.contains("error") || message.contains("Error")) {
+            statusText = "Failed";
+            indicatorRes = R.drawable.status_indicator_error;
+        } else if (message.contains("Running") || message.contains("Pushing")) {
+            statusText = "Running";
+            indicatorRes = R.drawable.status_indicator_active;
+        }
+        
         // Update stats card status
-        if (statStatus != null && statStatusIndicator != null) {
-            if (message.isEmpty() || message.contains("Ready")) {
-                statStatus.setText("Ready");
-                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_idle);
-            } else if (message.contains("success") || message.contains("Success")) {
-                statStatus.setText("Success");
-                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_active);
-            } else if (message.contains("fail") || message.contains("error") || message.contains("Error")) {
-                statStatus.setText("Failed");
-                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_error);
-            } else if (message.contains("Running") || message.contains("Pushing")) {
-                statStatus.setText("Running");
-                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_active);
-            } else {
-                statStatus.setText("Ready");
-                statStatusIndicator.setBackgroundResource(R.drawable.status_indicator_idle);
-            }
+        if (statStatus != null) {
+            statStatus.setText(statusText);
+        }
+        if (statStatusIndicator != null) {
+            statStatusIndicator.setBackgroundResource(indicatorRes);
+        }
+        
+        // Determine colors based on status
+        int cardColorAttr;
+        int chipColorAttr;
+        if (statusText.equals("Success")) {
+            cardColorAttr = com.google.android.material.R.attr.colorPrimaryContainer;
+            chipColorAttr = com.google.android.material.R.attr.colorPrimaryContainer;
+        } else if (statusText.equals("Failed")) {
+            cardColorAttr = com.google.android.material.R.attr.colorErrorContainer;
+            chipColorAttr = com.google.android.material.R.attr.colorErrorContainer;
+        } else if (statusText.equals("Running")) {
+            cardColorAttr = com.google.android.material.R.attr.colorSecondaryContainer;
+            chipColorAttr = com.google.android.material.R.attr.colorSecondaryContainer;
+        } else {
+            cardColorAttr = com.google.android.material.R.attr.colorSurfaceContainerHigh;
+            chipColorAttr = com.google.android.material.R.attr.colorSurfaceContainerHighest;
+        }
+        
+        android.util.TypedValue typedValue = new android.util.TypedValue();
+        
+        // Update status card background
+        if (statusStatCard != null) {
+            getTheme().resolveAttribute(cardColorAttr, typedValue, true);
+            statusStatCard.setCardBackgroundColor(typedValue.data);
+        }
+        
+        // Update header chip
+        if (headerStatusChip != null) {
+            headerStatusChip.setText(statusText);
+            getTheme().resolveAttribute(chipColorAttr, typedValue, true);
+            headerStatusChip.setChipBackgroundColor(android.content.res.ColorStateList.valueOf(typedValue.data));
         }
     }
 
@@ -1072,20 +1135,22 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         // Update auto status
         if (statAutoStatus != null) {
             boolean enabled = prefs.getBoolean("schedule_enabled", false);
-            statAutoStatus.setText(enabled ? "Active" : "Off");
+            statAutoStatus.setText(enabled ? "On" : "Off");
         }
         
         // Hide skeleton after data is loaded
         showStatsLoading(false);
     }
     
+    private boolean statsInitialized = false;
+    
     private void showStatsLoading(boolean loading) {
         if (statsContent == null || statsSkeleton == null) return;
         
-        if (loading) {
+        if (loading && !statsInitialized) {
+            // Only show skeleton on first load
             statsContent.setVisibility(View.INVISIBLE);
             statsSkeleton.setVisibility(View.VISIBLE);
-            // Pulse animation for skeleton
             statsSkeleton.setAlpha(0.5f);
             statsSkeleton.animate()
                     .alpha(1f)
@@ -1104,16 +1169,22 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                         }
                     })
                     .start();
-        } else {
+        } else if (!loading) {
             statsSkeleton.animate().cancel();
             statsSkeleton.setVisibility(View.GONE);
             statsContent.setVisibility(View.VISIBLE);
-            // Fade in content
-            statsContent.setAlpha(0f);
-            statsContent.animate()
-                    .alpha(1f)
-                    .setDuration(200)
-                    .start();
+            
+            // Only do fade animation on first load
+            if (!statsInitialized) {
+                statsInitialized = true;
+                statsContent.setAlpha(0f);
+                statsContent.animate()
+                        .alpha(1f)
+                        .setDuration(200)
+                        .start();
+            }
+            // Always ensure alpha is 1
+            statsContent.setAlpha(1f);
         }
     }
     

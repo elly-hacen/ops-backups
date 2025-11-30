@@ -4,4 +4,3 @@
     <solid android:color="?attr/colorError"/>
     <size android:width="12dp" android:height="12dp"/>
 </shape>
-

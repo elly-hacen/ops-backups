@@ -46,9 +46,11 @@
     <color name="status_success_light">#4CAF50</color>
     <color name="status_warning_light">#FF9800</color>
     <color name="status_info_light">#2196F3</color>
+    <color name="status_idle_light">#9E9E9E</color>
     <color name="status_success">@color/status_success_light</color>
     <color name="status_warning">@color/status_warning_light</color>
     <color name="status_info">@color/status_info_light</color>
+    <color name="status_idle">@color/status_idle_light</color>
     
     <!-- Status colors - Dark theme -->
     <color name="status_success_dark">#81C784</color>
