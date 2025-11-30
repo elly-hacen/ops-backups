@@ -361,7 +361,7 @@ public class SchedulesActivity extends AppCompatActivity {
             BackupHistoryItem item = items.get(position);
             // Handle invalid/missing timestamp
             if (item.timestamp > 0) {
-                holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
+            holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
             } else {
                 holder.timeView.setText("Unknown time");
             }
