@@ -71,8 +71,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     public static final String LOG_TAG = "TermuxTaskerMainActivity";
     private static final String PREFS_NAME = "BackupSettings";
     private static final String WORK_NAME = "AutoBackupWork";
-    private static final String ERROR_LOG_FILE = "/sdcard/ops-error-log.json";
+    // Error log now stored in app-private external files dir (not world-readable)
+    private static final String ERROR_LOG_FILENAME = "ops-error-log.json";
     private static final long MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB
+    
+    // Mutex to prevent concurrent backup polling
+    private static volatile boolean backupInProgress = false;
 
     private TextView backupStatusTextView;
     private TextView lastBackupTextView;
@@ -466,6 +470,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     }
 
     private void triggerBackupCommand() {
+        // Prevent concurrent backup triggers
+        if (backupInProgress) {
+            showSnackbar("Backup already in progress", Snackbar.LENGTH_SHORT);
+            return;
+        }
+        
         String validationError = validateTermuxReady();
         if (validationError != null) {
             updateBackupStatus(validationError);
@@ -488,11 +498,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             return;
         }
 
+        backupInProgress = true;
         updateBackupStatus(getString(R.string.executing_scripts, enabledScripts.size()));
         showProgress(true);
 
-        // Result file in shared storage
-        String resultFile = "/sdcard/ops-backup-result.txt";
+        // Result file in shared storage (unique per session to avoid collisions)
+        String resultFile = "/sdcard/ops-backup-result-" + System.currentTimeMillis() + ".txt";
         
         // Execute all enabled scripts and write result to shared storage
         StringBuilder combinedScript = new StringBuilder();
@@ -524,16 +535,21 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private void pollBackupResultFile(int attemptCount, int scriptCount, String resultFilePath) {
         if (attemptCount > 30) {
             // Timeout after 15 seconds
+            backupInProgress = false;
             showProgress(false);
             updateBackupStatus("Timeout - script is still running");
             
+            // Clean up result file
+            new java.io.File(resultFilePath).delete();
+            
             // Show detailed timeout dialog
+            String errorLogPath = getErrorLogFile().getAbsolutePath();
             new AlertDialog.Builder(this)
                 .setTitle("Backup Timeout")
-                .setMessage("Script is taking too long (>15s).\n\nPossible issues:\n• Git push waiting for authentication\n• Network is slow\n• Script is stuck\n\nCheck Termux terminal for details.\nError log: /sdcard/ops-error-log.json")
+                .setMessage("Script is taking too long (>15s).\n\nPossible issues:\n• Git push waiting for authentication\n• Network is slow\n• Script is stuck\n\nCheck Termux terminal for details.\nError log: " + errorLogPath)
                 .setPositiveButton("View Logs", (dialog, which) -> {
                     android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                    android.content.ClipData clip = android.content.ClipData.newPlainText("View Logs", "cat /sdcard/ops-error-log.json");
+                    android.content.ClipData clip = android.content.ClipData.newPlainText("View Logs", "cat \"" + errorLogPath + "\"");
                     if (clipboard != null) {
                         clipboard.setPrimaryClip(clip);
                         showSnackbar("Command copied! Paste in Termux", Snackbar.LENGTH_LONG);
@@ -556,6 +572,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                     
                     if (result != null) {
                         if (result.startsWith("SUCCESS")) {
+                            backupInProgress = false;
                             showProgress(false);
                             prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
                             updateLastBackupTime();
@@ -564,18 +581,20 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                             showSuccessDialog(scriptCount);
                             resultFile.delete();
                         } else if (result.startsWith("FAILED")) {
+                            backupInProgress = false;
                             showProgress(false);
                             String errorMsg = result.contains(":") ? result.substring(result.indexOf(":") + 1) : "Unknown error";
                             updateBackupStatus("Backup failed: " + errorMsg);
                             
                             // Show detailed error dialog
+                            String errLogPath = getErrorLogFile().getAbsolutePath();
                             new AlertDialog.Builder(this)
                                 .setTitle("Backup Failed")
-                                .setMessage("Error: " + errorMsg + "\n\nError log: /sdcard/ops-error-log.json")
+                                .setMessage("Error: " + errorMsg + "\n\nError log: " + errLogPath)
                                 .setPositiveButton("View Logs", (dialog, which) -> {
                                     // Copy log path to clipboard
                                     android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                                    android.content.ClipData clip = android.content.ClipData.newPlainText("Error Log Path", "cat /sdcard/ops-error-log.json");
+                                    android.content.ClipData clip = android.content.ClipData.newPlainText("Error Log Path", "cat \"" + errLogPath + "\"");
                                     if (clipboard != null) {
                                         clipboard.setPrimaryClip(clip);
                                         showSnackbar("Command copied! Open Termux and paste", Snackbar.LENGTH_LONG);
@@ -1216,9 +1235,18 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }
     }
     
+    private java.io.File getErrorLogFile() {
+        // Use app-private external files dir (not world-readable, survives app updates)
+        java.io.File dir = getExternalFilesDir(null);
+        if (dir != null && !dir.exists()) {
+            dir.mkdirs();
+        }
+        return new java.io.File(dir, ERROR_LOG_FILENAME);
+    }
+    
     private void logErrorToFile(String status, String message) {
         try {
-            java.io.File logFile = new java.io.File(ERROR_LOG_FILE);
+            java.io.File logFile = getErrorLogFile();
             
             // Check file size and cleanup if needed
             if (logFile.exists() && logFile.length() > MAX_LOG_SIZE) {
@@ -1257,7 +1285,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             // Write to file
             writeFile(logFile, logArray.toString(2));
             
-            Logger.logInfo(LOG_TAG, "Error logged to: " + ERROR_LOG_FILE);
+            Logger.logInfo(LOG_TAG, "Error logged to: " + logFile.getAbsolutePath());
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to write error log: " + e.getMessage());
         }

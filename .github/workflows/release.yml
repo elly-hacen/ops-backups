@@ -41,12 +41,20 @@ jobs:
           # Remove 'v' prefix for version name (e.g., 1.0.0)
           VERSION=${TAG#v}
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          # Auto-generate versionCode from semantic version (major*10000 + minor*100 + patch)
+          # e.g., 1.0.6 -> 10006, 2.3.15 -> 20315
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3 | cut -d- -f1)  # strip prerelease suffix
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_OUTPUT
 
       - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
           TERMUX_TASKER_APP__BUILD__APP_VERSION_NAME: ${{ steps.version.outputs.VERSION }}
           TERMUX_TASKER_APP__BUILD__APK_VERSION_TAG: ${{ steps.version.outputs.TAG }}
+          TERMUX_TASKER_APP__BUILD__APP_VERSION_CODE: ${{ steps.version.outputs.VERSION_CODE }}
 
       - name: Generate release notes
         id: release_notes

@@ -302,6 +302,12 @@ public class UpdateChecker {
     }
 
     public void installApk(File apkFile) {
+        // Verify APK signature before installing
+        if (!verifyApkSignature(apkFile)) {
+            Logger.logError(LOG_TAG, "APK signature verification failed - refusing to install");
+            return;
+        }
+        
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW);
             Uri apkUri;
@@ -319,6 +325,74 @@ public class UpdateChecker {
             Logger.logError(LOG_TAG, "Failed to start install: " + e.getMessage());
         }
     }
+    
+    /**
+     * Verifies that the downloaded APK is signed with the same certificate as the currently installed app.
+     * This prevents MITM attacks where an attacker substitutes a malicious APK.
+     */
+    private boolean verifyApkSignature(File apkFile) {
+        try {
+            android.content.pm.PackageManager pm = context.getPackageManager();
+            
+            // Get current app's signing certificate
+            android.content.pm.PackageInfo currentInfo;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                currentInfo = pm.getPackageInfo(context.getPackageName(), 
+                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);
+            } else {
+                currentInfo = pm.getPackageInfo(context.getPackageName(), 
+                    android.content.pm.PackageManager.GET_SIGNATURES);
+            }
+            
+            // Get downloaded APK's signing certificate
+            android.content.pm.PackageInfo apkInfo;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                apkInfo = pm.getPackageArchiveInfo(apkFile.getAbsolutePath(),
+                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES);
+            } else {
+                apkInfo = pm.getPackageArchiveInfo(apkFile.getAbsolutePath(),
+                    android.content.pm.PackageManager.GET_SIGNATURES);
+            }
+            
+            if (apkInfo == null) {
+                Logger.logError(LOG_TAG, "Failed to parse downloaded APK");
+                return false;
+            }
+            
+            // Compare signatures
+            android.content.pm.Signature[] currentSigs;
+            android.content.pm.Signature[] apkSigs;
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                currentSigs = currentInfo.signingInfo.getApkContentsSigners();
+                apkSigs = apkInfo.signingInfo != null ? apkInfo.signingInfo.getApkContentsSigners() : null;
+            } else {
+                currentSigs = currentInfo.signatures;
+                apkSigs = apkInfo.signatures;
+            }
+            
+            if (apkSigs == null || apkSigs.length == 0) {
+                Logger.logError(LOG_TAG, "Downloaded APK has no signatures");
+                return false;
+            }
+            
+            // Check if any signature matches
+            for (android.content.pm.Signature currentSig : currentSigs) {
+                for (android.content.pm.Signature apkSig : apkSigs) {
+                    if (currentSig.equals(apkSig)) {
+                        Logger.logInfo(LOG_TAG, "APK signature verified successfully");
+                        return true;
+                    }
+                }
+            }
+            
+            Logger.logError(LOG_TAG, "APK signature does not match installed app");
+            return false;
+        } catch (Exception e) {
+            Logger.logError(LOG_TAG, "Signature verification error: " + e.getMessage());
+            return false;
+        }
+    }
 
     public void cancelDownload() {
         cancelRequested = true;
@@ -330,6 +404,25 @@ public class UpdateChecker {
     public void cleanup() {
         cancelDownload();
         executor.shutdown();
+        try {
+            // Wait up to 2 seconds for tasks to complete
+            if (!executor.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+    
+    @Override
+    protected void finalize() throws Throwable {
+        // Safety net: ensure executor is shut down even if cleanup() wasn't called
+        if (!executor.isShutdown()) {
+            Logger.logError(LOG_TAG, "UpdateChecker finalized without cleanup() - forcing shutdown");
+            executor.shutdownNow();
+        }
+        super.finalize();
     }
 
     public static String formatFileSize(long bytes) {
