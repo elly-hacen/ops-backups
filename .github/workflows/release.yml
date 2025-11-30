@@ -116,8 +116,7 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
           name: Release ${{ steps.version.outputs.TAG }}
-          body: |
-            ${{ steps.release_notes.outputs.result }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
