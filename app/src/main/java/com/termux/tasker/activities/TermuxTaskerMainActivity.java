@@ -139,6 +139,17 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         bottomSheetBehavior.setHideable(true);
         bottomSheetBehavior.setSkipCollapsed(true);
         
+        // Add padding for navigation bar (edge-to-edge)
+        View bottomSheetContent = findViewById(R.id.bottom_sheet_content);
+        if (bottomSheetContent != null) {
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(bottomSheetContent, (v, insets) -> {
+                int navBarHeight = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom;
+                v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), 
+                    (int) (48 * getResources().getDisplayMetrics().density) + navBarHeight);
+                return insets;
+            });
+        }
+        
         // Setup floating menu button
         View menuButton = findViewById(R.id.menu_icon);
         if (menuButton != null) {

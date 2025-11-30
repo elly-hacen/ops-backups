@@ -606,18 +606,20 @@
         android:layout_height="wrap_content"
         android:background="?attr/colorSurface"
         android:elevation="16dp"
+        android:fitsSystemWindows="true"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
         app:behavior_peekHeight="0dp"
         app:behavior_hideable="true">
 
         <LinearLayout
+            android:id="@+id/bottom_sheet_content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingStart="20dp"
             android:paddingEnd="20dp"
             android:paddingTop="16dp"
-            android:paddingBottom="32dp">
+            android:paddingBottom="48dp">
 
             <View
                 android:layout_width="48dp"
