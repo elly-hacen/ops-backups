@@ -100,3 +100,4 @@ lint/tmp/
 # Backup files
 *.bak
 *~
+rel.md
