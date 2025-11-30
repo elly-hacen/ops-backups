@@ -1,3 +1,8 @@
+        findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            requestReleaseNotes(true, true);
+        });
+
 package com.termux.tasker.activities;
 
 import android.content.Intent;
@@ -221,11 +226,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
 
-        findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
-            requestReleaseNotes(true, true);
-        });
-
         backupStatusTextView = findViewById(R.id.textview_backup_status);
         lastBackupTextView = findViewById(R.id.textview_last_backup);
         progressBackup = findViewById(R.id.progress_backup);
@@ -318,7 +318,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             }
         });
 
-        maybeShowWhatsNewOnLaunch();
     }
 
     private void requestPermissionsIfNeeded() {
