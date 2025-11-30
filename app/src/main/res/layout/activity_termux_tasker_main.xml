@@ -551,61 +551,38 @@
             android:background="?attr/colorOutlineVariant"
             android:alpha="0.15" />
 
-        <!-- Version footer -->
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/textview_version"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:text="v1.0.0"
-            tools:text="v1.0.0"
-            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textSize="10sp"
-            android:clickable="true"
-            android:focusable="true" />
-
         <!-- Bottom Navigation Bar -->
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="64dp"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="16dp"
-            app:cardCornerRadius="28dp"
-            app:cardElevation="8dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
 
+            <!-- Schedules Button -->
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp">
+                android:id="@+id/nav_schedules"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
 
-                <!-- Schedules Button -->
-                <LinearLayout
-                    android:id="@+id/nav_schedules"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_schedule"
-                        app:tint="?attr/colorOnSurface"
-                        android:importantForAccessibility="no" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_schedule"
+                    app:tint="?attr/colorOnSurface"
+                    android:importantForAccessibility="no" />
 
                     <com.google.android.material.textview.MaterialTextView
                         android:layout_width="wrap_content"
@@ -616,52 +593,58 @@
                         android:textColor="?attr/colorOnSurface" />
                 </LinearLayout>
 
-                <!-- Center Menu FAB -->
-                <com.google.android.material.floatingactionbutton.FloatingActionButton
-                    android:id="@+id/nav_menu_fab"
+            <!-- Center Menu Button with Sloth -->
+            <FrameLayout
+                android:id="@+id/nav_menu_fab"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/menu_description">
+
+                <ImageView
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="center"
+                    android:src="@mipmap/ic_launcher"
+                    android:scaleType="fitCenter"
+                    android:importantForAccessibility="no" />
+            </FrameLayout>
+
+            <!-- Scripts Button -->
+            <LinearLayout
+                android:id="@+id/nav_scripts"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_script"
+                    app:tint="?attr/colorOnSurface"
+                    android:importantForAccessibility="no" />
+
+                <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:layout_marginEnd="16dp"
-                    android:src="@drawable/ic_menu"
-                    android:contentDescription="@string/menu_description"
-                    app:fabSize="normal"
-                    app:backgroundTint="?attr/colorPrimary"
-                    app:tint="?attr/colorOnPrimary"
-                    app:elevation="0dp" />
-
-                <!-- Scripts Button -->
-                <LinearLayout
-                    android:id="@+id/nav_scripts"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@drawable/ic_script"
-                        app:tint="?attr/colorOnSurface"
-                        android:importantForAccessibility="no" />
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/menu_scripts"
-                        android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                        android:textColor="?attr/colorOnSurface" />
-                </LinearLayout>
-
+                    android:layout_marginTop="4dp"
+                    android:text="@string/menu_scripts"
+                    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+                    android:textColor="?attr/colorOnSurface" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
 
     </LinearLayout>
 

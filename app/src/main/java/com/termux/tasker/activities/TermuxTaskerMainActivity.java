@@ -88,8 +88,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private Button testScheduleButton;
     private SharedPreferences prefs;
     private BottomSheetBehavior<androidx.core.widget.NestedScrollView> bottomSheetBehavior;
-    private int versionClickCount = 0;
-    private long lastVersionClickTime = 0;
     private Handler intervalUpdateHandler;
     private Runnable intervalUpdateRunnable;
     
@@ -174,7 +172,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         // Setup bottom navigation bar
         findViewById(R.id.nav_schedules).setOnClickListener(v -> {
             performHapticFeedbackLight(v);
-            startActivity(new Intent(this, SchedulesActivity.class));
+                    startActivity(new Intent(this, SchedulesActivity.class));
         });
         
         findViewById(R.id.nav_scripts).setOnClickListener(v -> {
@@ -187,13 +185,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             if (bottomSheetBehavior.getState() == BottomSheetBehavior.STATE_HIDDEN) {
                 bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
             } else {
-                bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
             }
         });
-
+        
         // Setup bottom sheet menu items
         findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
-            startActivity(new Intent(this, UsageGuideActivity.class));
+                    startActivity(new Intent(this, UsageGuideActivity.class));
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
         });
         
@@ -201,7 +199,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
             checkForUpdates();
         });
-
+        
         findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
             requestReleaseNotes(true, true);
@@ -257,32 +255,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         // Show background notification if auto-backup is enabled
         if (prefs.getBoolean("schedule_enabled", false)) {
             BackupWorker.showBackgroundStatusNotification(this);
-        }
-
-        // Easter egg - triple click version
-        TextView versionView = findViewById(R.id.textview_version);
-        if (versionView != null) {
-            // Set version from BuildConfig
-            versionView.setText("v" + com.termux.tasker.BuildConfig.VERSION_NAME);
-            
-            versionView.setOnClickListener(v -> {
-                long currentTime = System.currentTimeMillis();
-                
-                // Reset counter if more than 2 seconds since last click
-                if (currentTime - lastVersionClickTime > 2000) {
-                    versionClickCount = 0;
-                }
-                
-                versionClickCount++;
-                lastVersionClickTime = currentTime;
-                
-                if (versionClickCount == 3) {
-                    // Triple click detected - open website
-                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://owerflow.dev"));
-                    startActivity(browserIntent);
-                    versionClickCount = 0;
-                }
-            });
         }
 
         // Request necessary permissions
@@ -1085,7 +1057,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }
         return updateChecker;
     }
-
+    
     private void updateStatsCard() {
         // Update last backup stat
         long lastBackup = prefs.getLong("last_backup_time", 0);
@@ -1555,22 +1527,58 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }
         String normalized = raw.replace("\r", "");
         StringBuilder builder = new StringBuilder();
+        
         for (String line : normalized.split("\n")) {
             String trimmed = line.trim();
+            
+            // Skip empty lines
             if (TextUtils.isEmpty(trimmed)) {
                 continue;
             }
+            
+            // Skip markdown headers (## What's Changed, etc)
             if (trimmed.startsWith("#")) {
                 continue;
             }
-            if (trimmed.startsWith("- ")) {
-                builder.append("• ").append(trimmed.substring(2).trim());
-            } else {
-                builder.append(trimmed);
+            
+            // Skip "Full Changelog" links
+            if (trimmed.startsWith("**Full Changelog**") || trimmed.contains("compare/")) {
+                continue;
             }
-            builder.append("\n");
+            
+            // Process the line
+            String processed = trimmed;
+            
+            // Convert markdown links [text](url) to just text
+            processed = processed.replaceAll("\\[([^\\]]+)\\]\\([^)]+\\)", "$1");
+            
+            // Remove ** bold markers
+            processed = processed.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
+            
+            // Remove * italic markers
+            processed = processed.replaceAll("\\*([^*]+)\\*", "$1");
+            
+            // Remove ` code markers
+            processed = processed.replaceAll("`([^`]+)`", "$1");
+            
+            // Convert - bullets to •
+            if (processed.startsWith("- ") || processed.startsWith("* ")) {
+                processed = "• " + processed.substring(2).trim();
+            }
+            
+            // Clean up @mentions (keep just the username)
+            processed = processed.replaceAll("@([\\w-]+)", "$1");
+            
+            // Skip if line became empty after processing
+            if (processed.trim().isEmpty()) {
+                continue;
+            }
+            
+            builder.append(processed).append("\n");
         }
-        return builder.toString().trim();
+        
+        String result = builder.toString().trim();
+        return result.isEmpty() ? getString(R.string.release_notes_empty) : result;
     }
 
     private void markReleaseNotesSeen() {
