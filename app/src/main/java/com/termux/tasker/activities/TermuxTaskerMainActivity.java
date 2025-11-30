@@ -1375,7 +1375,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private java.io.File getErrorLogFile() {
         // Use app-private external files dir (not world-readable, survives app updates)
         java.io.File dir = getExternalFilesDir(null);
-        if (dir != null && !dir.exists()) {
+        if (dir == null) {
+            // Fallback to internal files dir if external not available
+            dir = getFilesDir();
+        }
+        if (!dir.exists()) {
             dir.mkdirs();
         }
         return new java.io.File(dir, ERROR_LOG_FILENAME);
@@ -1384,6 +1388,15 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private void logErrorToFile(String status, String message) {
         try {
             java.io.File logFile = getErrorLogFile();
+            
+            // Ensure parent directory exists
+            java.io.File parentDir = logFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                if (!parentDir.mkdirs()) {
+                    Logger.logError(LOG_TAG, "Failed to create log directory: " + parentDir.getAbsolutePath());
+                    return;
+                }
+            }
             
             // Check file size and cleanup if needed
             if (logFile.exists() && logFile.length() > MAX_LOG_SIZE) {
