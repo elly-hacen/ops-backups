@@ -637,6 +637,9 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             // Clean up result file
             new java.io.File(resultFilePath).delete();
             
+            // Log error FIRST so file exists when dialog shows the path
+            logBackupEvent("Timeout", "Script execution exceeded 15 seconds - likely stuck on git push or network issue");
+            
             // Show detailed timeout dialog
             String errorLogPath = getErrorLogFile().getAbsolutePath();
             new AlertDialog.Builder(this)
@@ -652,8 +655,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("Close", null)
                 .show();
-            
-            logBackupEvent("Timeout", "Script execution exceeded 15 seconds - likely stuck on git push or network issue");
             return;
         }
         
@@ -681,6 +682,9 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                             String errorMsg = result.contains(":") ? result.substring(result.indexOf(":") + 1) : "Unknown error";
                             updateBackupStatus("Backup failed: " + errorMsg);
                             
+                            // Log error FIRST so file exists when dialog shows the path
+                            logBackupEvent("Failed", errorMsg);
+                            
                             // Show detailed error dialog
                             String errLogPath = getErrorLogFile().getAbsolutePath();
                             new AlertDialog.Builder(this)
@@ -697,8 +701,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                                 })
                                 .setNegativeButton("Close", null)
                                 .show();
-                            
-                            logBackupEvent("Failed", errorMsg);
                             resultFile.delete();
                         } else {
                             pollBackupResultFile(attemptCount + 1, scriptCount, resultFilePath);
