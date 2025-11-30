@@ -166,15 +166,8 @@ public class BackupWorker extends Worker {
                     scripts.add(script.getString("path"));
                 }
             }
-            
-            // Fallback to default if no scripts configured
-            if (scripts.isEmpty() && scriptsArray.length() == 0) {
-                scripts.add("~/.termux/tasker/op-backup.sh");
-            }
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to load scripts: " + e.getMessage());
-            // Fallback to default script
-            scripts.add("~/.termux/tasker/op-backup.sh");
         }
         return scripts;
     }

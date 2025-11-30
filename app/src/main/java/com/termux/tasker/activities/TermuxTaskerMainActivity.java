@@ -743,15 +743,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                     scripts.add(script.getString("path"));
                 }
             }
-            
-            // Fallback to default if no scripts configured
-            if (scripts.isEmpty() && scriptsArray.length() == 0) {
-                scripts.add(getString(R.string.default_script_path));
-            }
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to load scripts: " + e.getMessage());
-            // Fallback to default script
-            scripts.add(getString(R.string.default_script_path));
         }
         return scripts;
     }
