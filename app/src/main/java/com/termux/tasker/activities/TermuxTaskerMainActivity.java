@@ -1359,7 +1359,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             @Override
             public void onNoUpdateAvailable(String currentVersion) {
                 checkingDialog.dismiss();
-                showSnackbar(getString(R.string.backup_already_scheduled) + "\n" + getString(R.string.schedule_status_active, getRelativeTimeString(prefs.getLong("last_backup_time", 0))), Snackbar.LENGTH_LONG);
+                showSnackbar(getString(R.string.update_no_update_snackbar, "v" + currentVersion), Snackbar.LENGTH_LONG);
             }
 
             @Override
