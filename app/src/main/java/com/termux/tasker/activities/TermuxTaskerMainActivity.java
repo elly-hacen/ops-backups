@@ -57,6 +57,7 @@ import com.termux.tasker.R;
 import com.termux.tasker.TermuxTaskerApplication;
 import com.termux.tasker.BuildConfig;
 import com.termux.tasker.UpdateChecker;
+import com.termux.tasker.UpdateCheckWorker;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -222,6 +223,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             checkForUpdates();
         });
         
+        // Auto-update check toggle
+        com.google.android.material.materialswitch.MaterialSwitch autoUpdateSwitch = findViewById(R.id.switch_auto_update);
+        autoUpdateSwitch.setChecked(UpdateCheckWorker.isAutoCheckEnabled(this));
+        autoUpdateSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            UpdateCheckWorker.setAutoCheckEnabled(this, isChecked);
+            showSnackbar(isChecked ? "Auto-update check enabled" : "Auto-update check disabled", Snackbar.LENGTH_SHORT);
+        });
+        
         findViewById(R.id.menu_whats_new).setOnClickListener(v -> {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
             requestReleaseNotes(true, true);
@@ -305,6 +314,103 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             }
         });
 
+        // Schedule weekly update check and check on launch
+        UpdateCheckWorker.scheduleWeeklyCheck(this);
+        checkForUpdateOnLaunch();
+        
+        // Handle intent if opened from notification
+        handleUpdateIntent(getIntent());
+    }
+    
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleUpdateIntent(intent);
+    }
+    
+    private void handleUpdateIntent(Intent intent) {
+        if (intent != null && intent.getBooleanExtra("show_update_dialog", false)) {
+            // Clear the flag
+            intent.removeExtra("show_update_dialog");
+            // Show update dialog
+            new Handler(Looper.getMainLooper()).postDelayed(this::checkForUpdates, 500);
+        }
+    }
+    
+    private void checkForUpdateOnLaunch() {
+        // Check with 24-hour cooldown
+        long lastCheck = UpdateCheckWorker.getLastCheckTime(this);
+        long now = System.currentTimeMillis();
+        long cooldown = 24 * 60 * 60 * 1000; // 24 hours
+        
+        if (now - lastCheck < cooldown) {
+            // Already checked recently, but show snackbar if update is available
+            if (UpdateCheckWorker.hasUpdateAvailable(this)) {
+                String latestVersion = UpdateCheckWorker.getLatestVersion(this);
+                if (latestVersion != null) {
+                    showUpdateAvailableSnackbar(latestVersion);
+                }
+            }
+            return;
+        }
+        
+        // Check for updates in background
+        new Thread(() -> {
+            try {
+                UpdateChecker checker = getUpdateChecker();
+                checker.checkForUpdates(new UpdateChecker.UpdateCheckListener() {
+                    @Override
+                    public void onUpdateAvailable(String latestVersion, String currentVersion, String releaseNotes, String downloadUrl, long fileSize, String releaseUrl) {
+                        runOnUiThread(() -> {
+                            // Save update info
+                            android.content.SharedPreferences updatePrefs = getSharedPreferences("update_check_prefs", MODE_PRIVATE);
+                            updatePrefs.edit()
+                                .putString("latest_version", latestVersion)
+                                .putBoolean("update_available", true)
+                                .putLong("last_update_check_time", System.currentTimeMillis())
+                                .apply();
+                            
+                            // Show snackbar
+                            showUpdateAvailableSnackbar(latestVersion);
+                        });
+                    }
+                    
+                    @Override
+                    public void onNoUpdateAvailable(String currentVersion) {
+                        // Update last check time
+                        android.content.SharedPreferences updatePrefs = getSharedPreferences("update_check_prefs", MODE_PRIVATE);
+                        updatePrefs.edit()
+                            .putBoolean("update_available", false)
+                            .putLong("last_update_check_time", System.currentTimeMillis())
+                            .apply();
+                    }
+                    
+                    @Override
+                    public void onError(String message) {
+                        Logger.logError(LOG_TAG, "Update check failed: " + message);
+                    }
+                });
+            } catch (Exception e) {
+                Logger.logError(LOG_TAG, "Update check error: " + e.getMessage());
+            }
+        }).start();
+    }
+    
+    private void showUpdateAvailableSnackbar(String newVersion) {
+        Snackbar snackbar = Snackbar.make(
+            rootView,
+            "Update available: v" + newVersion,
+            Snackbar.LENGTH_LONG
+        );
+        snackbar.setAction("Update", v -> {
+            UpdateCheckWorker.clearUpdateFlag(this);
+            checkForUpdates();
+        });
+        // Use theme color
+        android.util.TypedValue typedValue = new android.util.TypedValue();
+        getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimary, typedValue, true);
+        snackbar.setActionTextColor(typedValue.data);
+        snackbar.show();
     }
 
     private void requestPermissionsIfNeeded() {
