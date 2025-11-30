@@ -33,10 +33,10 @@
             android:letterSpacing="0.02" />
 
         <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/textview_about_version"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/about_version"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:textColor="?attr/colorOnPrimaryContainer" />
 

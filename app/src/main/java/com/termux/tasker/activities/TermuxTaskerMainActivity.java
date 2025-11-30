@@ -455,6 +455,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
         
+        // Set dynamic version
+        TextView versionView = dialogView.findViewById(R.id.textview_about_version);
+        if (versionView != null) {
+            versionView.setText("Version " + BuildConfig.VERSION_NAME);
+        }
+        
         // Setup button
         Button checkUpdatesButton = dialogView.findViewById(R.id.button_check_updates);
         
