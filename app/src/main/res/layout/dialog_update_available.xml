@@ -63,8 +63,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/update_current_label"
                         android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        android:alpha="0.8" />
+                        android:textColor="?attr/colorOnPrimaryContainer" />
 
                     <com.google.android.material.textview.MaterialTextView
                         android:id="@+id/textview_current_version"
@@ -83,7 +82,7 @@
                     android:layout_marginStart="12dp"
                     android:layout_marginEnd="12dp"
                     android:src="@drawable/ic_arrow_forward"
-                    android:tint="@android:color/white"
+                    android:tint="?attr/colorOnPrimaryContainer"
                     android:importantForAccessibility="no" />
 
                 <LinearLayout
@@ -98,8 +97,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/update_latest_label"
                         android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        android:alpha="0.8" />
+                        android:textColor="?attr/colorOnPrimaryContainer" />
 
                     <com.google.android.material.textview.MaterialTextView
                         android:id="@+id/textview_latest_version"
