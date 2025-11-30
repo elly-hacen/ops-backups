@@ -23,7 +23,7 @@
                 android:layout_height="36dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_whats_new"
-                android:tint="?attr/colorOnPrimaryContainer"
+                app:tint="?attr/colorOnPrimary"
                 android:importantForAccessibility="no" />
         </FrameLayout>
 
