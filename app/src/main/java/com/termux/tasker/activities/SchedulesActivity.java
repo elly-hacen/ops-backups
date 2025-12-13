@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.tabs.TabLayout;
 import com.termux.shared.logger.Logger;
 import com.termux.tasker.R;
 
@@ -36,19 +37,27 @@ public class SchedulesActivity extends AppCompatActivity {
     private static final int MAX_HISTORY_TO_DISPLAY = 50;
     private static final int MAX_HISTORY_TO_STORE = 200;
 
+    private static final int FILTER_ALL = 0;
+    private static final int FILTER_PUSHED = 1;
+    private static final int FILTER_FAILED = 2;
+
     private RecyclerView recyclerView;
     private View emptyStateView;
     private TextView totalBackupsView;
     private TextView successCountView;
     private TextView failedCountView;
+    private TextView filterInfoView;
     private View loadingIndicator;
+    private TabLayout tabLayoutFilter;
     private SharedPreferences prefs;
     private final ExecutorService historyExecutor = Executors.newSingleThreadExecutor();
+    private final List<BackupHistoryItem> allHistoryItems = new ArrayList<>();
     private final List<BackupHistoryItem> historyItems = new ArrayList<>();
     private ScheduleAdapter adapter;
     private Handler mainHandler;
     private volatile Future<?> currentHistoryTask;
     private final AtomicInteger loadGeneration = new AtomicInteger(0);
+    private int currentFilter = FILTER_ALL;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,7 +82,12 @@ public class SchedulesActivity extends AppCompatActivity {
         totalBackupsView = findViewById(R.id.textview_total_backups);
         successCountView = findViewById(R.id.textview_success_count);
         failedCountView = findViewById(R.id.textview_failed_count);
+        filterInfoView = findViewById(R.id.textview_filter_info);
+        tabLayoutFilter = findViewById(R.id.tab_layout_filter);
         prefs = getSharedPreferences("BackupSettings", MODE_PRIVATE);
+
+        // Setup filter tabs
+        setupFilterTabs();
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new ScheduleAdapter(historyItems);
@@ -82,6 +96,84 @@ public class SchedulesActivity extends AppCompatActivity {
         findViewById(R.id.button_clear_all).setOnClickListener(v -> confirmClearAll());
         
         loadScheduleHistory();
+    }
+
+    private void setupFilterTabs() {
+        tabLayoutFilter.addTab(tabLayoutFilter.newTab().setText("All"));
+        tabLayoutFilter.addTab(tabLayoutFilter.newTab().setText("Pushed"));
+        tabLayoutFilter.addTab(tabLayoutFilter.newTab().setText("Failed"));
+
+        tabLayoutFilter.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                currentFilter = tab.getPosition();
+                applyFilter();
+            }
+
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {}
+
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {}
+        });
+    }
+
+    private void applyFilter() {
+        historyItems.clear();
+        
+        for (BackupHistoryItem item : allHistoryItems) {
+            boolean include = false;
+            switch (currentFilter) {
+                case FILTER_ALL:
+                    include = true;
+                    break;
+                case FILTER_PUSHED:
+                    include = "Completed".equals(item.status);
+                    break;
+                case FILTER_FAILED:
+                    include = "Failed".equals(item.status) || "Timeout".equals(item.status);
+                    break;
+            }
+            if (include) {
+                historyItems.add(item);
+            }
+        }
+
+        updateFilterInfo();
+        
+        if (historyItems.isEmpty() && !allHistoryItems.isEmpty()) {
+            showFilteredEmptyState();
+        } else if (historyItems.isEmpty()) {
+            showEmptyState();
+        } else {
+            emptyStateView.setVisibility(View.GONE);
+            recyclerView.setVisibility(View.VISIBLE);
+        }
+        
+        adapter.notifyDataSetChanged();
+    }
+
+    private void updateFilterInfo() {
+        String filterText;
+        switch (currentFilter) {
+            case FILTER_PUSHED:
+                filterText = historyItems.size() + " successful push" + (historyItems.size() != 1 ? "es" : "");
+                break;
+            case FILTER_FAILED:
+                filterText = historyItems.size() + " failed backup" + (historyItems.size() != 1 ? "s" : "");
+                break;
+            default:
+                filterText = getString(R.string.schedules_subtitle);
+                break;
+        }
+        if (filterInfoView != null) {
+            filterInfoView.setText(filterText);
+        }
+    }
+
+    private void showFilteredEmptyState() {
+        emptyStateView.setVisibility(View.VISIBLE);
+        recyclerView.setVisibility(View.GONE);
     }
 
     private void confirmClearAll() {
@@ -228,11 +320,12 @@ public class SchedulesActivity extends AppCompatActivity {
         for (int i = 0; i < historyArray.length(); i++) {
             JSONObject item = historyArray.getJSONObject(i);
             String status = item.optString("status", "");
-            if ("Completed".equals(status)) {
+            if ("Completed".equals(status) || "No Changes".equals(status)) {
                 success++;
-            } else if (!"Scheduled".equals(status) && !"Queued".equals(status)) {
+            } else if ("Failed".equals(status) || "Timeout".equals(status)) {
                 failed++;
             }
+            // Scheduled, Queued are not counted in success or failed
         }
         return new int[]{total, success, failed};
     }
@@ -262,14 +355,14 @@ public class SchedulesActivity extends AppCompatActivity {
         if (failedCountView != null) failedCountView.setText(String.valueOf(failed));
         showLoading(false);
 
+        // Store all items and apply current filter
+        allHistoryItems.clear();
+        allHistoryItems.addAll(items);
+        
         if (items.isEmpty()) {
             showEmptyState();
         } else {
-            emptyStateView.setVisibility(View.GONE);
-            recyclerView.setVisibility(View.VISIBLE);
-            historyItems.clear();
-            historyItems.addAll(items);
-            adapter.notifyDataSetChanged();
+            applyFilter();
         }
     }
 
@@ -359,15 +452,46 @@ public class SchedulesActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(ScheduleViewHolder holder, int position) {
             BackupHistoryItem item = items.get(position);
-            // Handle invalid/missing timestamp
+            
+            // Time
             if (item.timestamp > 0) {
-            holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
+                holder.timeView.setText(dateFormat.format(new Date(item.timestamp)));
             } else {
                 holder.timeView.setText("Unknown time");
             }
-            holder.categoryView.setText(item.category.toUpperCase(Locale.getDefault()));
-            holder.statusView.setText(item.status + (item.message.isEmpty() ? "" : " - " + item.message));
             
+            // Category
+            holder.categoryView.setText(item.category.toUpperCase(Locale.getDefault()));
+            
+            // Status text and visual styling based on type
+            String statusText;
+            int statusColor;
+            switch (item.status) {
+                case "Completed":
+                    statusText = "Pushed to GitHub";
+                    statusColor = getResources().getColor(R.color.status_success, getTheme());
+                    holder.statusDot.setBackgroundTintList(android.content.res.ColorStateList.valueOf(statusColor));
+                    break;
+                case "No Changes":
+                    statusText = "No changes";
+                    statusColor = getResources().getColor(com.google.android.material.R.color.material_dynamic_neutral60, getTheme());
+                    holder.statusDot.setBackgroundTintList(android.content.res.ColorStateList.valueOf(statusColor));
+                    break;
+                case "Failed":
+                case "Timeout":
+                    statusText = item.message.isEmpty() ? item.status : item.message;
+                    statusColor = getResources().getColor(com.google.android.material.R.color.design_default_color_error, getTheme());
+                    holder.statusDot.setBackgroundTintList(android.content.res.ColorStateList.valueOf(statusColor));
+                    break;
+                default:
+                    statusText = item.status + (item.message.isEmpty() ? "" : " - " + item.message);
+                    statusColor = getResources().getColor(com.google.android.material.R.color.material_dynamic_neutral60, getTheme());
+                    holder.statusDot.setBackgroundTintList(android.content.res.ColorStateList.valueOf(statusColor));
+                    break;
+            }
+            holder.statusView.setText(statusText);
+            
+            // Delete button
             holder.deleteButton.setOnClickListener(v -> {
                 int adapterPosition = holder.getAdapterPosition();
                 if (adapterPosition != RecyclerView.NO_POSITION) {
@@ -386,6 +510,7 @@ public class SchedulesActivity extends AppCompatActivity {
         TextView timeView;
         TextView categoryView;
         TextView statusView;
+        View statusDot;
         Button deleteButton;
 
         ScheduleViewHolder(View itemView) {
@@ -393,6 +518,7 @@ public class SchedulesActivity extends AppCompatActivity {
             timeView = itemView.findViewById(R.id.textview_time);
             categoryView = itemView.findViewById(R.id.textview_category);
             statusView = itemView.findViewById(R.id.textview_status);
+            statusDot = itemView.findViewById(R.id.status_dot);
             deleteButton = itemView.findViewById(R.id.button_delete);
         }
     }

@@ -42,7 +42,7 @@ public class BackupWorker extends Worker {
         if (enabledScripts.isEmpty()) {
             Logger.logError(LOG_TAG, "No enabled scripts configured");
             showNotification(context, "Backup Failed", "No enabled scripts configured");
-            logBackupResult(context, false, "No enabled scripts configured");
+            logBackupResult(context, "Failed", "No enabled scripts configured");
             return Result.failure();
         }
 
@@ -74,32 +74,50 @@ public class BackupWorker extends Worker {
             Logger.logInfo(LOG_TAG, "Backup command sent to Termux successfully");
             
             // Wait for result file (poll up to 30 seconds)
-            boolean success = waitForResult(resultFile, 30);
+            int resultCode = waitForResult(resultFile, 30);
             
-            if (success) {
-                // Save last backup time
+            // Save last backup time for any success
+            if (resultCode == RESULT_PUSHED || resultCode == RESULT_NO_CHANGES) {
                 context.getSharedPreferences("BackupSettings", Context.MODE_PRIVATE)
                        .edit()
                        .putLong("last_backup_time", System.currentTimeMillis())
                        .apply();
-                
-                showNotification(context, "Backup Complete", "Scheduled backup executed successfully");
-                logBackupResult(context, true, "Auto backup completed");
-                return Result.success();
-            } else {
-                showNotification(context, "Backup Failed", "Script execution failed or timed out");
-                logBackupResult(context, false, "Script execution failed or timed out");
-                return Result.failure();
+            }
+            
+            switch (resultCode) {
+                case RESULT_PUSHED:
+                    showNotification(context, "Backup Complete", "Changes pushed to GitHub");
+                    logBackupResult(context, "Completed", "Successfully pushed to GitHub");
+                    return Result.success();
+                case RESULT_NO_CHANGES:
+                    showNotification(context, "Backup Complete", "No changes to push");
+                    logBackupResult(context, "No Changes", "Repository already up to date");
+                    return Result.success();
+                case RESULT_FAILED:
+                    showNotification(context, "Backup Failed", "Script execution failed");
+                    logBackupResult(context, "Failed", "Script execution failed");
+                    return Result.failure();
+                case RESULT_TIMEOUT:
+                default:
+                    showNotification(context, "Backup Failed", "Script timed out");
+                    logBackupResult(context, "Timeout", "Script execution timed out");
+                    return Result.failure();
             }
         } catch (Exception e) {
             Logger.logError(LOG_TAG, "Failed to trigger backup: " + e.getMessage());
             showNotification(context, "Backup Failed", e.getMessage());
-            logBackupResult(context, false, e.getMessage());
+            logBackupResult(context, "Failed", e.getMessage());
             return Result.failure();
         }
     }
     
-    private boolean waitForResult(String resultFilePath, int timeoutSeconds) {
+    // Result codes for waitForResult
+    private static final int RESULT_PUSHED = 1;
+    private static final int RESULT_NO_CHANGES = 2;
+    private static final int RESULT_FAILED = -1;
+    private static final int RESULT_TIMEOUT = -2;
+
+    private int waitForResult(String resultFilePath, int timeoutSeconds) {
         java.io.File resultFile = new java.io.File(resultFilePath);
         int attempts = timeoutSeconds * 2; // Check every 500ms
         
@@ -113,9 +131,12 @@ public class BackupWorker extends Worker {
                     resultFile.delete();
                     
                     if (result != null && result.startsWith("SUCCESS")) {
-                        return true;
+                        if (result.contains("NO_CHANGES")) {
+                            return RESULT_NO_CHANGES;
+                        }
+                        return RESULT_PUSHED;
                     } else if (result != null && result.startsWith("FAILED")) {
-                        return false;
+                        return RESULT_FAILED;
                     }
                 }
             } catch (Exception e) {
@@ -125,10 +146,10 @@ public class BackupWorker extends Worker {
         
         // Timeout - clean up and return failure
         resultFile.delete();
-        return false;
+        return RESULT_TIMEOUT;
     }
     
-    private void logBackupResult(Context context, boolean success, String message) {
+    private void logBackupResult(Context context, String status, String message) {
         try {
             android.content.SharedPreferences prefs = context.getSharedPreferences("BackupSettings", Context.MODE_PRIVATE);
             String historyJson = prefs.getString("backup_history", "[]");
@@ -136,7 +157,7 @@ public class BackupWorker extends Worker {
             
             org.json.JSONObject event = new org.json.JSONObject();
             event.put("timestamp", System.currentTimeMillis());
-            event.put("status", success ? "Completed" : "Failed");
+            event.put("status", status);
             event.put("message", message);
             event.put("source", "auto");
             

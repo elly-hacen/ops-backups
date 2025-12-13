@@ -72,7 +72,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     public static final String LOG_TAG = "TermuxTaskerMainActivity";
     private static final String PREFS_NAME = "BackupSettings";
     private static final String WORK_NAME = "AutoBackupWork";
-    // Error log now stored in app-private external files dir (not world-readable)
     private static final String ERROR_LOG_FILENAME = "ops-error-log.json";
     private static final long MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB
     
@@ -118,7 +117,6 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Enable dynamic colors (Material You) - Android 12+/API 31+ is our minSdk
             try {
                 getTheme().applyStyle(com.google.android.material.R.style.ThemeOverlay_Material3_DynamicColors_DayNight, true);
             } catch (Exception e) {
@@ -172,7 +170,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             }
         });
 
-        // Setup bottom navigation bar
+        // bottom navigation bar
         findViewById(R.id.nav_schedules).setOnClickListener(v -> {
             performHapticFeedbackLight(v);
                     startActivity(new Intent(this, SchedulesActivity.class));
@@ -212,7 +210,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             });
         }
         
-        // Setup bottom sheet menu items
+        // bottom sheet menu items
         findViewById(R.id.menu_usage_guide).setOnClickListener(v -> {
                     startActivity(new Intent(this, UsageGuideActivity.class));
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
@@ -260,14 +258,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         statStatus = findViewById(R.id.stat_status);
         statStatusIndicator = findViewById(R.id.stat_status_indicator);
         statAutoStatus = findViewById(R.id.stat_auto_status);
-        statsContent = findViewById(R.id.card_stats); // The actual stats row
+        statsContent = findViewById(R.id.card_stats);
         statsSkeleton = findViewById(R.id.stats_skeleton);
         headerStatusChip = findViewById(R.id.chip_header_status);
         statusStatCard = findViewById(R.id.card_status_stat);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         
-        // Show skeleton loading initially
+        // skeleton loading initially
         showStatsLoading(true);
 
         findViewById(R.id.button_run_backup).setOnClickListener(v -> {
@@ -285,7 +283,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         updateLastBackupTime();
         updateStatsCard();
         
-        // Show background notification if auto-backup is enabled
+        // background notification if auto-backup is enabled
         if (prefs.getBoolean("schedule_enabled", false)) {
             BackupWorker.showBackgroundStatusNotification(this);
         }
@@ -406,7 +404,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             UpdateCheckWorker.clearUpdateFlag(this);
             checkForUpdates();
         });
-        // Use theme color
+        // theme color
         android.util.TypedValue typedValue = new android.util.TypedValue();
         getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimary, typedValue, true);
         snackbar.setActionTextColor(typedValue.data);
@@ -600,9 +598,11 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         // Result file in shared storage (unique per session to avoid collisions)
         String resultFile = "/sdcard/ops-backup-result-" + System.currentTimeMillis() + ".txt";
         
-        // Execute all enabled scripts and write result to shared storage
+        // Execute all enabled scripts with OPS_RESULT_FILE env var
+        // Scripts should write SUCCESS:PUSHED, SUCCESS:NO_CHANGES, or FAILED:reason to this file
         StringBuilder combinedScript = new StringBuilder();
-        combinedScript.append("rm -f ").append(resultFile).append(" && (");
+        combinedScript.append("export OPS_RESULT_FILE='").append(resultFile).append("' && ");
+        combinedScript.append("rm -f \"$OPS_RESULT_FILE\" && ");
         
         for (int i = 0; i < enabledScripts.size(); i++) {
             String scriptPath = enabledScripts.get(i);
@@ -610,8 +610,8 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
             combinedScript.append("bash ").append(scriptPath);
         }
         
-        combinedScript.append(" && echo 'SUCCESS' > ").append(resultFile);
-        combinedScript.append(") || echo 'FAILED:Script execution error' > ").append(resultFile);
+        // Fallback if script doesn't write result
+        combinedScript.append(" || echo 'FAILED:Script execution error' > \"$OPS_RESULT_FILE\"");
 
         String error = startBackgroundCommand(combinedScript.toString());
         
@@ -672,9 +672,17 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
                             showProgress(false);
                             prefs.edit().putLong("last_backup_time", System.currentTimeMillis()).apply();
                             updateLastBackupTime();
-                            updateBackupStatus("Backup successful!");
-                            logBackupEvent("Completed", "Successfully pushed to GitHub");
-                            showSuccessDialog(scriptCount);
+                            
+                            // Check if actually pushed or no changes
+                            if (result.contains("NO_CHANGES")) {
+                                updateBackupStatus("No changes to backup");
+                                logBackupEvent("No Changes", "Nothing to push - repository is up to date");
+                                showNoChangesSnackbar();
+                            } else {
+                                updateBackupStatus("Backup successful!");
+                                logBackupEvent("Completed", "Successfully pushed to GitHub");
+                                showSuccessSnackbar();
+                            }
                             resultFile.delete();
                         } else if (result.startsWith("FAILED")) {
                             backupInProgress = false;
@@ -875,48 +883,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         }
     }
 
-    private void showSuccessDialog(int scriptCount) {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_backup_success, null);
-        
-        TextView scriptsCountView = dialogView.findViewById(R.id.textview_scripts_count);
-        TextView lastBackupView = dialogView.findViewById(R.id.textview_last_backup_time);
-        View successIcon = dialogView.findViewById(R.id.success_icon);
-        
-        if (scriptsCountView != null) {
-            scriptsCountView.setText(String.format("%d script(s) executed successfully", scriptCount));
-        }
-        
-        if (lastBackupView != null) {
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MMM dd, yyyy HH:mm:ss", java.util.Locale.getDefault());
-            lastBackupView.setText(sdf.format(new java.util.Date()));
-        }
-        
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(dialogView)
-                .setCancelable(true)
-                .create();
-        
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setDimAmount(0.75f);
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-        
-        dialogView.findViewById(R.id.button_ok).setOnClickListener(v -> {
-            performHapticFeedbackLight(v);
-            dialog.dismiss();
-        });
-        
-        dialog.show();
-        
-        // Animate the success icon with overshoot effect
-        if (successIcon != null) {
-            Animation scaleAnim = AnimationUtils.loadAnimation(this, R.anim.success_scale);
-            successIcon.startAnimation(scaleAnim);
-            // Haptic feedback on success
-            performHapticFeedback(successIcon);
-        }
+    private void showSuccessSnackbar() {
+        showSnackbar("Pushed to GitHub", Snackbar.LENGTH_SHORT);
+    }
 
-        playStatsCelebration();
+    private void showNoChangesSnackbar() {
+        showSnackbar("No changes to push", Snackbar.LENGTH_SHORT);
     }
 
     private void setupScheduleUI() {
@@ -1317,9 +1289,7 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         updateLastBackupTime();
         logBackupEvent("Completed", "Successfully pushed to GitHub");
         
-        // Show success dialog
-        List<String> enabledScripts = getEnabledScripts();
-        showSuccessDialog(enabledScripts.size());
+        showSuccessSnackbar();
     }
 
     private void playStatsCelebration() {
