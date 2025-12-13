@@ -412,26 +412,33 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     }
 
     private void requestPermissionsIfNeeded() {
-        // Notification permission (Android 13+) - shows as popup
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        // Chain permissions sequentially - only show next after previous is handled
+        checkNotificationPermission();
+    }
+    
+    private void checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 100);
-                }
+                return; // Wait for onRequestPermissionsResult
             }
-            
-        // Check for Files permission (MANAGE_EXTERNAL_STORAGE)
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!android.os.Environment.isExternalStorageManager()) {
-                showFilesPermissionDialog();
-            }
-        }, 800);
-        
-        // Check Termux RUN_COMMAND permission
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED) {
-                showTermuxPermissionDialog();
-            }
-        }, 2500);
+        }
+        // If already granted or not needed, check next permission
+        checkStoragePermission();
+    }
+    
+    private void checkStoragePermission() {
+        if (!android.os.Environment.isExternalStorageManager()) {
+            showFilesPermissionDialog();
+        } else {
+            checkTermuxPermission();
+        }
+    }
+    
+    private void checkTermuxPermission() {
+        if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED) {
+            showTermuxPermissionDialog();
+        }
     }
 
     private void showFilesPermissionDialog() {
@@ -444,10 +451,12 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setDimAmount(0.6f);
         }
         
-        dialogView.findViewById(R.id.button_skip_files).setOnClickListener(v -> dialog.dismiss());
+        dialogView.findViewById(R.id.button_skip_files).setOnClickListener(v -> {
+            dialog.dismiss();
+            checkTermuxPermission();
+        });
         
         dialogView.findViewById(R.id.button_grant_files).setOnClickListener(v -> {
             try {
@@ -474,15 +483,14 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setDimAmount(0.6f);
         }
         
         dialogView.findViewById(R.id.button_cancel_termux).setOnClickListener(v -> dialog.dismiss());
         
         dialogView.findViewById(R.id.button_open_settings_termux).setOnClickListener(v -> {
-                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
             dialog.dismiss();
         });
         
@@ -500,6 +508,15 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         
         // Restart interval preview updater
         startIntervalPreviewUpdater();
+    }
+    
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 100) {
+            // Notification permission handled, continue to next
+            checkStoragePermission();
+        }
     }
 
     @Override
@@ -1530,7 +1547,10 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         if (currentVersionView != null) currentVersionView.setText("v" + currentVersion);
         if (latestVersionView != null) latestVersionView.setText("v" + latestVersion);
         if (downloadSizeView != null) downloadSizeView.setText(getString(R.string.download_size_format, UpdateChecker.formatFileSize(fileSize)));
-        if (releaseNotesView != null) releaseNotesView.setText(formatReleaseNotes(releaseNotes));
+        if (releaseNotesView != null) {
+            io.noties.markwon.Markwon markwon = io.noties.markwon.Markwon.create(this);
+            markwon.setMarkdown(releaseNotesView, cleanReleaseNotes(releaseNotes));
+        }
         if (releaseLink != null) {
             releaseLink.setVisibility(TextUtils.isEmpty(releaseUrl) ? View.GONE : View.VISIBLE);
             releaseLink.setOnClickListener(v -> {
@@ -1659,8 +1679,13 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
     private void showReleaseNotesSheet(String version, String releaseNotes, String releaseUrl) {
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View view = getLayoutInflater().inflate(R.layout.bottom_sheet_release_notes, null);
-        ((TextView) view.findViewById(R.id.text_release_version)).setText(getString(R.string.release_notes_version_label, version));
-        ((TextView) view.findViewById(R.id.text_release_notes)).setText(formatReleaseNotes(releaseNotes));
+        ((TextView) view.findViewById(R.id.text_release_version)).setText("v" + version);
+        
+        // Use Markwon for proper markdown rendering
+        TextView notesView = view.findViewById(R.id.text_release_notes);
+        io.noties.markwon.Markwon markwon = io.noties.markwon.Markwon.create(this);
+        markwon.setMarkdown(notesView, cleanReleaseNotes(releaseNotes));
+        
         view.findViewById(R.id.button_release_close).setOnClickListener(v -> dialog.dismiss());
         View moreButton = view.findViewById(R.id.button_release_more);
         if (TextUtils.isEmpty(releaseUrl)) {
@@ -1676,64 +1701,24 @@ public class TermuxTaskerMainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private CharSequence formatReleaseNotes(String raw) {
+    private String cleanReleaseNotes(String raw) {
         if (TextUtils.isEmpty(raw)) {
             return getString(R.string.release_notes_empty);
         }
-        String normalized = raw.replace("\r", "");
-        StringBuilder builder = new StringBuilder();
         
-        for (String line : normalized.split("\n")) {
+        StringBuilder result = new StringBuilder();
+        for (String line : raw.replace("\r", "").split("\n")) {
             String trimmed = line.trim();
-            
-            // Skip empty lines
-            if (TextUtils.isEmpty(trimmed)) {
-                continue;
-            }
-            
-            // Skip markdown headers (## What's Changed, etc)
-            if (trimmed.startsWith("#")) {
-                continue;
-            }
             
             // Skip "Full Changelog" links
             if (trimmed.startsWith("**Full Changelog**") || trimmed.contains("compare/")) {
                 continue;
             }
             
-            // Process the line
-            String processed = trimmed;
-            
-            // Convert markdown links [text](url) to just text
-            processed = processed.replaceAll("\\[([^\\]]+)\\]\\([^)]+\\)", "$1");
-            
-            // Remove ** bold markers
-            processed = processed.replaceAll("\\*\\*([^*]+)\\*\\*", "$1");
-            
-            // Remove * italic markers
-            processed = processed.replaceAll("\\*([^*]+)\\*", "$1");
-            
-            // Remove ` code markers
-            processed = processed.replaceAll("`([^`]+)`", "$1");
-            
-            // Convert - bullets to •
-            if (processed.startsWith("- ") || processed.startsWith("* ")) {
-                processed = "• " + processed.substring(2).trim();
-            }
-            
-            // Clean up @mentions (keep just the username)
-            processed = processed.replaceAll("@([\\w-]+)", "$1");
-            
-            // Skip if line became empty after processing
-            if (processed.trim().isEmpty()) {
-                continue;
-            }
-            
-            builder.append(processed).append("\n");
+            result.append(line).append("\n");
         }
         
-        String result = builder.toString().trim();
-        return result.isEmpty() ? getString(R.string.release_notes_empty) : result;
+        return result.toString().trim();
     }
 
     private void markReleaseNotesSeen() {

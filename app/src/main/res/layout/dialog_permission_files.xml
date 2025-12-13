@@ -5,78 +5,55 @@
     android:layout_height="wrap_content"
     android:layout_margin="24dp"
     app:cardCornerRadius="@dimen/radius_xl"
-    app:cardElevation="8dp"
-    app:cardBackgroundColor="?attr/colorSurface">
-
-<LinearLayout
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="28dp">
-
-    <ImageView
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_gravity="center_horizontal"
-        android:src="@drawable/ic_folder"
-        app:tint="?attr/colorPrimary" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="Files Access Required"
-        android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
-        android:textColor="?attr/colorOnSurface"
-        android:textStyle="bold"
-        android:gravity="center" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="Ops needs access to device storage to save backup results and error logs."
-        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:gravity="center"
-        android:lineSpacingMultiplier="1.3" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="• Write backup results to /sdcard/\n• Save error logs for debugging\n• Read backup script files"
-        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:lineSpacingMultiplier="1.6" />
+    app:cardElevation="4dp"
+    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:orientation="horizontal"
-        android:gravity="end">
+        android:orientation="vertical"
+        android:padding="24dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/button_skip_files"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Skip"
-            android:textAllCaps="false"
-            android:layout_marginEnd="8dp" />
+            android:text="Storage Access"
+            android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+            android:textColor="?attr/colorOnSurface" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/button_grant_files"
-            style="@style/Widget.Material3.Button.ElevatedButton"
-            android:layout_width="wrap_content"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Grant Access"
-            android:textAllCaps="false" />
+            android:layout_marginTop="8dp"
+            android:text="Required to save backup results and read script files."
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="horizontal"
+            android:gravity="end">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_skip_files"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Skip"
+                android:textAllCaps="false" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/button_grant_files"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Grant"
+                android:textAllCaps="false" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
-</LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>
-
